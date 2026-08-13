@@ -59,13 +59,24 @@ React Native
 type DnsQuery = {
   name: string;
   type: string;
-  server?: string;
-  port?: number;
+  resolver:
+    | { mode: 'system' }
+    | { mode: 'custom'; address: string; port: number };
   transport?: 'auto' | 'udp' | 'tcp';
   timeoutMs?: number;
   retries?: number;
   dnssecOk?: boolean;
   ednsUdpSize?: number;
+};
+
+type DnsEndpoint = {
+  address: string;
+  port: number;
+};
+
+type ResolverInfo = DnsEndpoint & {
+  source: 'wifi' | 'cellular' | 'vpn' | 'system' | 'custom';
+  interfaceName?: string;
 };
 
 type DnsResult = {
@@ -76,7 +87,8 @@ type DnsResult = {
   answer: DnsRecord[];
   authority: DnsRecord[];
   additional: DnsRecord[];
-  server: string;
+  selectedResolver: ResolverInfo;
+  replyServer?: DnsEndpoint;
   transport: 'udp' | 'tcp';
   elapsedMs: number;
   wireBytes: number;
@@ -85,8 +97,10 @@ type DnsResult = {
 
 query(request: DnsQuery): Promise<DnsResult>;
 cancel(queryId: string): void;
-getSystemResolvers(): Promise<SystemResolver[]>;
+getSystemResolvers(): Promise<ResolverInfo[]>;
 ```
+
+`selectedResolver` 表示发起查询时实际采用的 resolver 配置；`replyServer` 表示 socket 收到响应时观察到的远端 endpoint。两者不能互相推断。若平台或 transport 无法可靠提供响应来源，`replyServer` 留空，UI 显示“Unavailable”，不得用配置值冒充响应方。
 
 错误统一分类为：输入错误、超时、取消、网络不可达、服务器失败、协议解析失败、Native 内部错误。
 
@@ -115,14 +129,70 @@ getSystemResolvers(): Promise<SystemResolver[]>;
 - 自行构造/解析完整 DNS packet，以保留 flags 和四个 section；不要只使用返回 IP 地址的简化接口。
 - 系统 DNS 与用户指定 server 是两个明确模式。
 
-## 6. UI 页面
+## 6. UI 与交互规格
 
-1. 查询页：域名、类型、DNS server、transport 和高级选项。
-2. 结果页：摘要、四个 section、flags、耗时；可切换 `Structured` / `dig` 视图。
-3. 历史页：重复查询、收藏、删除和分享。
-4. 设置页：默认 server、超时、EDNS、隐私和开源许可证。
+当前界面参考：[Digger wireframe](wireframe/digger-wireframe.html)。
 
-`dig` 文本由纯 TypeScript formatter 生成，并用 snapshot tests 固定格式；它只是展示层，不是 Native API。
+### 6.1 导航结构
+
+底部只保留三个一级 Tab：
+
+1. **Query**：构造并运行查询。
+2. **History**：浏览本机保存的历史记录和收藏。
+3. **Settings**：管理持久化默认值、隐私与本地数据。
+
+**Result 不是 Tab**，而是 Query 与 History 共用的详情页：
+
+- Query 点击 **Run Query** 后 push Result；查询进行中时 Result 展示 loading 与 Cancel。
+- 点击 History 中任意记录后 push 同一个 Result，并展示当时保存的完整响应。
+- Result 返回时回到发起它的 Tab，并保持原表单或列表位置。
+- Result 页保留 Copy 与 Share；Query 和 History 顶部不放置全局操作按钮。
+
+### 6.2 Query 页面
+
+主要字段：域名、RR 类型、Resolver、Transport、EDNS、DO bit、Timeout 与 Retries。
+
+Resolver 默认使用当前网络的系统配置，并尽可能显示可观察到的实际地址，例如 `10.0.0.243:53`：
+
+- VPN 活跃且系统将 DNS 路由到 VPN 时，优先显示 VPN resolver，并标注 `VPN`。
+- Wi-Fi、蜂窝网络切换后立即刷新显示值，下一次查询不得复用旧 resolver。
+- 若系统只允许判断“使用系统 DNS”而不暴露地址，显示 `System resolver`，不猜测地址。
+- 用户可在本次查询中覆盖为 custom resolver；该覆盖不改变 Settings 中的默认值。
+
+点击 Run Query 前进行输入校验。运行期间锁定会改变请求语义的字段，并提供 Cancel。状态包括：idle、validating、running、success、input error、timeout、cancelled、network error 和 protocol error。
+
+### 6.3 Result 页面
+
+页面标题使用单数 **Result**。顶部首先展示查询对象与响应来源：
+
+- **Reply received from**：`replyServer` 的 IP、端口以及实际 transport，例如 `10.0.0.243:53 · UDP`。
+- **Resolver source**：System、Wi-Fi、Cellular、VPN 或 Custom。
+- 无法可靠取得响应 endpoint 时显示 `Unavailable`，并仍可展示 selected resolver。
+
+摘要展示 rcode、耗时和 wire size；正文可在 **Structured** 与 **dig** 两种视图间切换：
+
+- Structured：flags、Question、Answer、Authority、Additional；空 section 仍显示记录数。
+- dig：由同一个 `DnsResult` 通过纯 TypeScript formatter 生成，`SERVER` 行使用 `replyServer`，不可用时明确写 `unavailable`。
+- DNS rcode（如 NXDOMAIN、SERVFAIL）仍属于成功收到的 DNS 响应；transport/timeout/parse error 使用独立错误页面，不伪造 DNS section。
+- Copy 复制当前视图；Share 调用系统 share sheet；收藏与 Run again 可作为 Result 内的内容操作。
+
+### 6.4 History 页面
+
+每条记录至少保存：查询参数、时间、rcode 或错误类型、耗时、selected resolver、reply server、transport、完整结构化结果和收藏状态。
+
+- 点击记录进入 Result，不另建历史详情页。
+- Run again 从 Result 发起，并使用当前网络的系统 resolver；若原查询使用 custom resolver，则保留该 custom endpoint 并允许修改。
+- 收藏通过记录行或 Result 页面切换。
+- 删除使用行级 swipe/context action；清空全部历史放在 Settings，不放在 History 顶部。
+- 分享从 Result 发起，不在 History 顶部提供批量分享。
+
+### 6.5 Settings 页面
+
+- Query defaults：默认 resolver 模式、transport、timeout、retries、EDNS 和 DO bit。
+- Privacy & Data：明确说明查询不上传、历史仅保存在本机；提供 Clear History。
+- About：版本、开源许可证和第三方 notices。
+
+`dig` 文本只是展示层，不是 Native API；用 snapshot tests 固定格式，并确保 Structured 与 dig 始终来自同一份结果数据。
 
 ## 7. 实施阶段
 
@@ -184,5 +254,3 @@ MVP 验收标准：
 3. native 包体增量与构建维护成本是否可接受。
 
 若全部通过，保持 c-ares 作为统一核心；DoH 后续优先使用平台 HTTP/TLS transport，不替换现有 DNS 数据模型。
-
-
