@@ -8,7 +8,21 @@
     "lint": "eslint .",
     "start": "react-native start",
     "test": "jest",
+    "test:native": "./scripts/test-native-dns.sh",
     "typecheck": "tsc --noEmit"
+  },
+  "codegenConfig": {
+    "name": "DiggerSpecs",
+    "type": "modules",
+    "jsSrcsDir": "specs",
+    "android": {
+      "javaPackageName": "com.digger.specs"
+    },
+    "ios": {
+      "modulesProvider": {
+        "NativeDnsModule": "NativeDnsModuleProvider"
+      }
+    }
   },
   "dependencies": {
     "@react-navigation/bottom-tabs": "^7.18.16",

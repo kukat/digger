@@ -11,7 +11,8 @@ import {
 } from 'react-native';
 
 import type {QueryStackParamList} from '../navigation/types';
-import type {NativeDns} from '../native/NativeDns';
+import type {DnsRecordType, NativeDns} from '../native/NativeDns';
+import type {DnsResolver} from '../../specs/NativeDnsModule';
 import {colors} from '../theme';
 
 type Props = NativeStackScreenProps<QueryStackParamList, 'QueryForm'> & {
@@ -29,6 +30,10 @@ const defaults = {
 
 export function QueryScreen({nativeDns, navigation}: Props) {
   const [name, setName] = useState('');
+  const [type, setType] = useState<DnsRecordType>('A');
+  const [resolverMode, setResolverMode] = useState<DnsResolver['mode']>('system');
+  const [resolverAddress, setResolverAddress] = useState('');
+  const [resolverPort, setResolverPort] = useState('53');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string>();
   const nextQueryId = useRef(0);
@@ -40,6 +45,16 @@ export function QueryScreen({nativeDns, navigation}: Props) {
       return;
     }
 
+    let resolver: DnsResolver = defaults.resolver;
+    if (resolverMode === 'custom') {
+      const port = Number(resolverPort);
+      if (!resolverAddress.trim() || !Number.isInteger(port) || port < 1 || port > 65535) {
+        setError('Enter a valid custom resolver address and port.');
+        return;
+      }
+      resolver = {mode: 'custom', address: resolverAddress.trim(), port};
+    }
+
     setError(undefined);
     setIsLoading(true);
     const queryId = `query-${++nextQueryId.current}`;
@@ -47,12 +62,13 @@ export function QueryScreen({nativeDns, navigation}: Props) {
     try {
       const result = await nativeDns.query(queryId, {
         name: normalizedName,
-        type: 'A',
+        type,
         ...defaults,
+        resolver,
       });
       navigation.push('Result', {
         name: normalizedName,
-        type: 'A',
+        type,
         result,
       });
     } catch (queryError) {
@@ -89,16 +105,72 @@ export function QueryScreen({nativeDns, navigation}: Props) {
 
         <Text style={[styles.label, styles.recordLabel]}>RR type</Text>
         <View accessibilityRole="radiogroup" style={styles.types}>
-          <View accessibilityRole="radio" accessibilityState={{checked: true}} style={styles.typePill}>
-            <Text style={styles.typeText}>A</Text>
-          </View>
+          {(['A', 'AAAA'] as const).map(recordType => {
+            const selected = type === recordType;
+            return (
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{checked: selected}}
+                disabled={isLoading}
+                key={recordType}
+                onPress={() => setType(recordType)}
+                style={[styles.typePill, selected && styles.typePillSelected]}>
+                <Text style={[styles.typeText, selected && styles.typeTextSelected]}>
+                  {recordType}
+                </Text>
+              </Pressable>
+            );
+          })}
         </View>
       </View>
 
       <View style={styles.advanced}>
-        <Text style={styles.advancedTitle}>Advanced</Text>
+        <Text style={styles.advancedTitle}>Resolver</Text>
+        <View accessibilityRole="radiogroup" style={styles.types}>
+          {(['system', 'custom'] as const).map(mode => {
+            const selected = resolverMode === mode;
+            const label = mode === 'system' ? 'System resolver' : 'Custom resolver';
+            return (
+              <Pressable
+                accessibilityRole="radio"
+                accessibilityState={{checked: selected}}
+                disabled={isLoading}
+                key={mode}
+                onPress={() => setResolverMode(mode)}
+                style={[styles.typePill, selected && styles.typePillSelected]}>
+                <Text style={[styles.typeText, selected && styles.typeTextSelected]}>
+                  {label}
+                </Text>
+              </Pressable>
+            );
+          })}
+        </View>
+        {resolverMode === 'custom' ? (
+          <View style={styles.resolverFields}>
+            <TextInput
+              accessibilityLabel="Custom resolver address"
+              autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isLoading}
+              onChangeText={setResolverAddress}
+              placeholder="192.0.2.53 or 2001:db8::53"
+              placeholderTextColor={colors.muted}
+              style={[styles.input, styles.resolverAddress]}
+              value={resolverAddress}
+            />
+            <TextInput
+              accessibilityLabel="Custom resolver port"
+              editable={!isLoading}
+              keyboardType="number-pad"
+              maxLength={5}
+              onChangeText={setResolverPort}
+              style={[styles.input, styles.resolverPort]}
+              value={resolverPort}
+            />
+          </View>
+        ) : null}
         <Text style={styles.advancedValue}>
-          System resolver · Auto · EDNS 1232 · DO off · 3s · 1 retry
+          Auto · EDNS 1232 · DO off · 3s · 1 retry
         </Text>
       </View>
 
@@ -180,17 +252,24 @@ const styles = StyleSheet.create({
     marginTop: 10,
   },
   typePill: {
-    backgroundColor: colors.accentSoft,
-    borderColor: colors.accent,
+    borderColor: colors.border,
     borderRadius: 10,
     borderWidth: 1,
+    marginRight: 8,
     paddingHorizontal: 20,
     paddingVertical: 9,
   },
+  typePillSelected: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.accent,
+  },
   typeText: {
-    color: colors.accent,
+    color: colors.muted,
     fontSize: 15,
     fontWeight: '700',
+  },
+  typeTextSelected: {
+    color: colors.accent,
   },
   advanced: {
     borderBottomColor: colors.border,
@@ -206,7 +285,20 @@ const styles = StyleSheet.create({
   advancedValue: {
     color: colors.muted,
     fontSize: 12,
-    marginTop: 5,
+    marginTop: 10,
+  },
+  resolverFields: {
+    flexDirection: 'row',
+    gap: 12,
+    marginTop: 8,
+  },
+  resolverAddress: {
+    flex: 1,
+    fontSize: 15,
+  },
+  resolverPort: {
+    fontSize: 15,
+    width: 64,
   },
   loading: {
     alignItems: 'center',

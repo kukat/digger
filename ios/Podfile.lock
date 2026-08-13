@@ -1,6 +1,7 @@
 PODS:
   - boost (1.84.0):
     - ReactNativeDependencies
+  - c-ares (1.34.5)
   - DoubleConversion (1.1.6):
     - ReactNativeDependencies
   - fast_float (8.0.0):
@@ -1727,6 +1728,7 @@ PODS:
 
 DEPENDENCIES:
   - boost (from `build/rndeps-facades/boost`)
+  - c-ares (from `../c-ares.podspec`)
   - DoubleConversion (from `build/rndeps-facades/DoubleConversion`)
   - fast_float (from `build/rndeps-facades/fast_float`)
   - FBLazyVector (from `build/rncore-facades/FBLazyVector`)
@@ -1818,6 +1820,8 @@ DEPENDENCIES:
 EXTERNAL SOURCES:
   boost:
     :path: build/rndeps-facades/boost
+  c-ares:
+    :podspec: "../c-ares.podspec"
   DoubleConversion:
     :path: build/rndeps-facades/DoubleConversion
   fast_float:
@@ -1994,6 +1998,7 @@ EXTERNAL SOURCES:
 
 SPEC CHECKSUMS:
   boost: 8502bfdc46e2804408af2e163049ece181009af4
+  c-ares: 7ee42f09b3ced8b356cec14a30a4abe7ba83dcf7
   DoubleConversion: 501a575c40c0b50c89685762dd3e415e6bb26fb0
   fast_float: 7c925d1cebf8328d4018d061f49377e9f887e3b4
   FBLazyVector: 732df79fea96f10cc14477969cea05707026d2fd
@@ -2074,13 +2079,13 @@ SPEC CHECKSUMS:
   React-viewtransitionnativemodule: e49acd8b47e151107ff00f704604ea45c19aefff
   React-webperformancenativemodule: 5980edf76ca86ca218acff067891358e671934bc
   ReactAppDependencyProvider: ed5609dc8e30eeade35ba8e43128781ee8fdf4de
-  ReactCodegen: dca6757feb1e977c5cf6708872d7fe48b5a45528
+  ReactCodegen: 8e3146e73fef630432b23ee928b112dc77a44def
   ReactCommon: 5f5a302748322015f2e3334869cdd9b4d0395846
   ReactNativeDependencies: ec5530432d8191b38e278117d498aaff05ea9d6f
   RNScreens: a2103f13fa603c405092daf70ca4eb3a6291fd6d
   SocketRocket: 37aec555668fb852ec12e3c0de59a86ca58f0871
   Yoga: d1c536142c5ff8ec8cd856ab2a7c227a1d875c8e
 
-PODFILE CHECKSUM: 3ec244894692539f46fae1191f0e1bfb50a26126
+PODFILE CHECKSUM: a4d319b18791085f10cbdd9dea3072142d212905
 
-COCOAPODS: 1.15.2
+COCOAPODS: 1.16.2

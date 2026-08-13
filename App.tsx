@@ -3,13 +3,13 @@ import {StatusBar} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {AppNavigator} from './src/navigation/AppNavigator';
-import {type NativeDns, simulatedNativeDns} from './src/native/NativeDns';
+import {nativeDns as productionNativeDns, type NativeDns} from './src/native/NativeDns';
 
 type AppProps = {
   nativeDns?: NativeDns;
 };
 
-function App({nativeDns = simulatedNativeDns}: AppProps) {
+function App({nativeDns = productionNativeDns}: AppProps) {
   return (
     <SafeAreaProvider>
       <StatusBar barStyle="dark-content" />

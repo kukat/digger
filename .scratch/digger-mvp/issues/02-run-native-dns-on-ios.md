@@ -6,10 +6,10 @@
 
 **Status:** ready-for-agent
 
-- [ ] A user can run A and AAAA Queries against the iOS system resolver and see a real Result in the existing workflow.
-- [ ] A user can supply a valid custom IPv4 or IPv6 resolver address and port for the current Query.
-- [ ] The native contract accepts typed Query values and returns typed response code, flags, DNS sections, elapsed time, wire size, transport, and optional server endpoint values.
-- [ ] When iOS cannot reliably identify the system server endpoint, Result reports that it used the system resolver rather than inventing an address.
-- [ ] DNS work runs away from the UI thread and repeated Queries leave the application responsive.
-- [ ] c-ares is available in supported iOS device and simulator builds, with local-network access described when required for a custom resolver.
-- [ ] Deterministic native contract tests use controlled DNS responses rather than depending on a public resolver.
+- [x] A user can run A and AAAA Queries against the iOS system resolver and see a real Result in the existing workflow.
+- [x] A user can supply a valid custom IPv4 or IPv6 resolver address and port for the current Query.
+- [x] The native contract accepts typed Query values and returns typed response code, flags, DNS sections, elapsed time, wire size, transport, and optional server endpoint values.
+- [x] When iOS cannot reliably identify the system server endpoint, Result reports that it used the system resolver rather than inventing an address.
+- [x] DNS work runs away from the UI thread and repeated Queries leave the application responsive.
+- [x] c-ares is available in supported iOS device and simulator builds, with local-network access described when required for a custom resolver.
+- [x] Deterministic native contract tests use controlled DNS responses rather than depending on a public resolver.

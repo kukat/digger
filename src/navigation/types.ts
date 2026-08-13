@@ -4,7 +4,7 @@ export type QueryStackParamList = {
   QueryForm: undefined;
   Result: {
     name: string;
-    type: 'A';
+    type: 'A' | 'AAAA';
     result: DnsResult;
   };
 };
