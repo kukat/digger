@@ -20,7 +20,8 @@
 - 强制 TCP
 - EDNS、DO bit、超时、重试和取消
 - 展示 rcode、flags、question/answer/authority/additional、响应耗时、服务器和报文大小
-- 保存查询历史、常用服务器，支持复制和分享
+- 保存最近查询的名称与 RR 类型，不保存查询结果
+- 支持复制和分享当前结果
 
 ### 暂不包含
 
@@ -30,7 +31,7 @@
 - AXFR、TSIG、动态更新
 - 设备级 DNS 代理或 VPN
 
-这些能力不应阻塞 MVP，但数据模型需为后续 transport 和 DNSSEC 状态预留字段。
+这些能力不应阻塞 MVP，也不为它们提前增加 UI、持久化或复杂领域模型。
 
 ## 3. 总体架构
 
@@ -62,10 +63,10 @@ type DnsQuery = {
   resolver:
     | { mode: 'system' }
     | { mode: 'custom'; address: string; port: number };
-  transport?: 'auto' | 'udp' | 'tcp';
-  timeoutMs?: number;
-  retries?: number;
-  dnssecOk?: boolean;
+  transport: 'auto' | 'udp' | 'tcp';
+  timeoutMs: number;
+  retries: number;
+  dnssecOk: boolean;
   ednsUdpSize?: number;
 };
 
@@ -74,35 +75,26 @@ type DnsEndpoint = {
   port: number;
 };
 
-type ResolverInfo = DnsEndpoint & {
-  source: 'wifi' | 'cellular' | 'vpn' | 'system' | 'custom';
-  interfaceName?: string;
-};
-
 type DnsResult = {
-  queryId: string;
   rcode: string;
   flags: string[];
-  question: DnsRecord[];
+  question: DnsQuestion[];
   answer: DnsRecord[];
   authority: DnsRecord[];
   additional: DnsRecord[];
-  selectedResolver: ResolverInfo;
-  replyServer?: DnsEndpoint;
+  server?: DnsEndpoint;
   transport: 'udp' | 'tcp';
   elapsedMs: number;
   wireBytes: number;
-  rawWireBase64?: string;
 };
 
-query(request: DnsQuery): Promise<DnsResult>;
+query(queryId: string, request: DnsQuery): Promise<DnsResult>;
 cancel(queryId: string): void;
-getSystemResolvers(): Promise<ResolverInfo[]>;
 ```
 
-`selectedResolver` 表示发起查询时实际采用的 resolver 配置；`replyServer` 表示 socket 收到响应时观察到的远端 endpoint。两者不能互相推断。若平台或 transport 无法可靠提供响应来源，`replyServer` 留空，UI 显示“Unavailable”，不得用配置值冒充响应方。
+JS 在调用前生成 `queryId`，使运行中的 Promise 可以被取消。Native 返回本次查询实际使用的 `server`；平台无法可靠提供地址时留空，UI 显示 `System resolver`。API 不暴露 exchange trace、raw packet 或历史持久化模型。
 
-错误统一分类为：输入错误、超时、取消、网络不可达、服务器失败、协议解析失败、Native 内部错误。
+错误统一分类为：输入错误、超时、取消、网络不可达、协议解析失败和 Native 内部错误。NXDOMAIN、SERVFAIL、REFUSED 等 rcode 是正常收到的 DNS 响应，不属于 transport error。
 
 ## 5. 平台实现
 
@@ -131,68 +123,58 @@ getSystemResolvers(): Promise<ResolverInfo[]>;
 
 ## 6. UI 与交互规格
 
-当前界面参考：[Digger wireframe](wireframe/digger-wireframe.html)。
+当前界面参考：[Digger wireframe](wireframe/digger-wireframe.html)。首要目标是漂亮、小巧，不把 MVP 做成查询结果管理或深度诊断平台。
 
 ### 6.1 导航结构
 
-底部只保留三个一级 Tab：
+底部保留三个一级 Tab：
 
 1. **Query**：构造并运行查询。
-2. **History**：浏览本机保存的历史记录和收藏。
-3. **Settings**：管理持久化默认值、隐私与本地数据。
+2. **History**：浏览最近查询过的名称与 RR 类型。
+3. **Settings**：清理本地数据并查看隐私与 App 信息。
 
-**Result 不是 Tab**，而是 Query 与 History 共用的详情页：
-
-- Query 点击 **Run Query** 后 push Result；查询进行中时 Result 展示 loading 与 Cancel。
-- 点击 History 中任意记录后 push 同一个 Result，并展示当时保存的完整响应。
-- Result 返回时回到发起它的 Tab，并保持原表单或列表位置。
-- Result 页保留 Copy 与 Share；Query 和 History 顶部不放置全局操作按钮。
+**Result 不是 Tab**。Query 点击 **Run Query** 后 push Result；查询期间显示 loading 与 Cancel。返回 Query 后保留表单但丢弃 Result，Result 不写入 History 或其他持久化存储。
 
 ### 6.2 Query 页面
 
-主要字段：域名、RR 类型、Resolver、Transport、EDNS、DO bit、Timeout 与 Retries。
+首屏只突出三个元素：Name、RR type 和 **Run Query**。
 
-Resolver 默认使用当前网络的系统配置，并尽可能显示可观察到的实际地址，例如 `10.0.0.243:53`：
+- 常用类型直接显示 `A`、`AAAA`、`CNAME`、`MX`、`TXT`；`More…` 打开包含 NS、SOA、PTR、SRV、CAA、HTTPS、SVCB 的完整列表。
+- Resolver、Transport、EDNS、DO bit、Timeout 与 Retries 收进可展开的 **Advanced** 区域。
+- 内置默认值：System resolver、Auto transport、EDNS on（UDP size 1232）、DO off、每次 timeout 3 秒、retries 1。
+- Custom resolver 只属于当前表单，不提供常用服务器收藏或管理。
+- PTR 允许输入 IP 地址并转换为 reverse-mapping name；普通查询不从 URL 猜测 hostname。
 
-- VPN 活跃且系统将 DNS 路由到 VPN 时，优先显示 VPN resolver，并标注 `VPN`。
-- Wi-Fi、蜂窝网络切换后立即刷新显示值，下一次查询不得复用旧 resolver。
-- 若系统只允许判断“使用系统 DNS”而不暴露地址，显示 `System resolver`，不猜测地址。
-- 用户可在本次查询中覆盖为 custom resolver；该覆盖不改变 Settings 中的默认值。
-
-点击 Run Query 前进行输入校验。运行期间锁定会改变请求语义的字段，并提供 Cancel。状态包括：idle、validating、running、success、input error、timeout、cancelled、network error 和 protocol error。
+点击 Run Query 前进行输入校验。运行期间锁定会改变请求语义的字段，并提供 Cancel。输入校验通过并开始查询后，将 name + RR type 写入 Recent Queries，不论最终得到 DNS 响应还是查询错误。
 
 ### 6.3 Result 页面
 
-页面标题使用单数 **Result**。顶部首先展示查询对象与响应来源：
-
-- **Reply received from**：`replyServer` 的 IP、端口以及实际 transport，例如 `10.0.0.243:53 · UDP`。
-- **Resolver source**：System、Wi-Fi、Cellular、VPN 或 Custom。
-- 无法可靠取得响应 endpoint 时显示 `Unavailable`，并仍可展示 selected resolver。
+Result 只展示当前查询。顶部显示 query name、RR type、实际 transport，以及 Native 可提供的单一 **Server** endpoint；地址不可用时显示 `System resolver`。
 
 摘要展示 rcode、耗时和 wire size；正文可在 **Structured** 与 **dig** 两种视图间切换：
 
 - Structured：flags、Question、Answer、Authority、Additional；空 section 仍显示记录数。
-- dig：由同一个 `DnsResult` 通过纯 TypeScript formatter 生成，`SERVER` 行使用 `replyServer`，不可用时明确写 `unavailable`。
-- DNS rcode（如 NXDOMAIN、SERVFAIL）仍属于成功收到的 DNS 响应；transport/timeout/parse error 使用独立错误页面，不伪造 DNS section。
-- Copy 复制当前视图；Share 调用系统 share sheet；收藏与 Run again 可作为 Result 内的内容操作。
+- dig：从同一份 `DnsResult` 生成熟悉的 `dig` 风格文本，但不承诺与 BIND `dig` 逐字节一致。
+- NXDOMAIN、SERVFAIL、REFUSED 等 rcode 仍按 DNS 响应展示；timeout、cancelled、network error 和 invalid response 显示简洁错误状态，不伪造 DNS sections。
+- Copy 与 Share 处理当前选中的视图。Structured 使用人类可读文本，dig 使用完整 dig 风格文本；不提供 JSON、raw packet 或导出文件。
 
 ### 6.4 History 页面
 
-每条记录至少保存：查询参数、时间、rcode 或错误类型、耗时、selected resolver、reply server、transport、完整结构化结果和收藏状态。
+History 是最近查询快捷入口，不是结果档案。
 
-- 点击记录进入 Result，不另建历史详情页。
-- Run again 从 Result 发起，并使用当前网络的系统 resolver；若原查询使用 custom resolver，则保留该 custom endpoint 并允许修改。
-- 收藏通过记录行或 Result 页面切换。
-- 删除使用行级 swipe/context action；清空全部历史放在 Settings，不放在 History 顶部。
-- 分享从 Result 发起，不在 History 顶部提供批量分享。
+- 每条只保存 `name + RR type`，不保存 response、rcode、耗时、resolver 或错误。
+- 按规范化 name + RR type 去重；再次查询时移到顶部。
+- 最多保留 50 条，超出后自动移除最旧项。
+- 点击记录返回 Query，只回填 name 与 RR type，不自动执行；当前 resolver 与 Advanced 选项保持不变。
+- 不提供收藏。支持单条删除；Clear History 放在 Settings。
 
 ### 6.5 Settings 页面
 
-- Query defaults：默认 resolver 模式、transport、timeout、retries、EDNS 和 DO bit。
-- Privacy & Data：明确说明查询不上传、历史仅保存在本机；提供 Clear History。
-- About：版本、开源许可证和第三方 notices。
+- **Privacy & Data**：明确说明查询不上传、Recent Queries 仅保存在本机；提供 Clear History。
+- **About**：版本、开源许可证和第三方 notices。
+- MVP 不提供持久化 Query defaults。
 
-`dig` 文本只是展示层，不是 Native API；用 snapshot tests 固定格式，并确保 Structured 与 dig 始终来自同一份结果数据。
+`dig` 文本只是展示层，不是 Native API；用 snapshot tests 固定格式，并确保 Structured 与 dig 始终来自同一份当前结果数据。
 
 ## 7. 实施阶段
 
@@ -214,7 +196,7 @@ Resolver 默认使用当前网络的系统配置，并尽可能显示可观察�
 
 ### 阶段三：产品完善（约 1 周）
 
-- 历史、收藏、复制、分享和错误提示
+- Recent Queries、复制、分享和错误提示
 - 权限、隐私、开源 notices
 - 真机兼容、性能与发布构建测试
 
