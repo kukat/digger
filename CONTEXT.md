@@ -15,3 +15,12 @@ _Avoid_: History entry, saved result
 **Recent Query**:
 The name and record type of a valid query the user ran, saved locally to refill the Query form. Entries are unique by name and record type, ordered by most recent use, limited to 50, and never contain a previous result.
 _Avoid_: Saved result, result history
+
+## Tech Stack
+
+- React Native 0.87 with TurboModules
+- c-ares for native DNS resolution
+
+## Design
+
+See the [Digger design wireframe](docs/wireframe/digger-wireframe.html).
