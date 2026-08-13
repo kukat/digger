@@ -1,5 +1,3 @@
-import {Platform} from 'react-native';
-
 import NativeDnsModule, {
   type DnsQuery,
   type DnsQuestion,
@@ -17,10 +15,8 @@ export interface NativeDns {
 
 export const nativeDns: NativeDns = {
   query(queryId, request) {
-    if (Platform.OS !== 'ios' || NativeDnsModule == null) {
-      return Promise.reject(
-        new Error('Native DNS is not available on this platform yet.'),
-      );
+    if (NativeDnsModule == null) {
+      return Promise.reject(new Error('Native DNS is not available.'));
     }
     return NativeDnsModule.query(queryId, request);
   },

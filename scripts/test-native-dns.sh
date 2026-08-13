@@ -30,6 +30,7 @@ cares_library="$prefix/lib/libcares.a"
   -I"$root/shared" \
   -I"$work_dir/include" \
   "$root/shared/CaresDnsService.cpp" \
+  "$root/shared/tests/DnsServiceContractScenarios.cpp" \
   "$root/shared/tests/DnsServiceContractTests.cpp" \
   "$cares_library" \
   -o "$work_dir/dns-service-contract-tests"

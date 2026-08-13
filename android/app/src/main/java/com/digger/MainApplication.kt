@@ -1,6 +1,7 @@
 package com.digger
 
 import android.app.Application
+import android.net.ConnectivityManager
 import com.facebook.react.PackageList
 import com.facebook.react.ReactApplication
 import com.facebook.react.ReactHost
@@ -23,5 +24,9 @@ class MainApplication : Application(), ReactApplication {
   override fun onCreate() {
     super.onCreate()
     loadReactNative(this)
+    val connectivityManager = getSystemService(ConnectivityManager::class.java)
+    check(NativeDnsAndroid.initialize(connectivityManager) == 0) {
+      "Could not initialize DNS for the current Android network."
+    }
   }
 }

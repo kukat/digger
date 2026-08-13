@@ -20,11 +20,16 @@ npm run typecheck
 npm run lint
 npm test
 npm run test:native # requires Homebrew c-ares
+(cd android && ./gradlew connectedDebugAndroidTest) # requires a device/emulator
 ```
 
-## Native DNS on iOS
+## Native DNS
 
-The iOS app builds c-ares 1.34.5 from the pinned `c-ares.podspec` and exposes the shared C++ DNS service through the typed `NativeDnsModule` TurboModule. It supports A and AAAA Queries through the system resolver or a custom IPv4/IPv6 resolver and port. iOS may ask for local-network access when the custom resolver is on the local network; allow it for those Queries.
+Both apps expose the shared C++ c-ares 1.34.5 DNS service through the typed `NativeDnsModule` TurboModule. They support A and AAAA Queries through the system resolver or a custom IPv4/IPv6 resolver and port.
+
+The iOS build uses the pinned `c-ares.podspec`. iOS may ask for local-network access when the custom resolver is on the local network; allow it for those Queries.
+
+The Android CMake build downloads the checksum-pinned c-ares release and packages the native module for every configured release ABI. At startup, Android supplies c-ares with `ConnectivityManager`, so each system Query uses the current network's resolver configuration.
 
 ## App workflow seam
 

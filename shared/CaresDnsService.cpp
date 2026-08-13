@@ -1,6 +1,10 @@
 #include "DnsService.h"
 
+#if __has_include(<cares/ares.h>)
 #include <cares/ares.h>
+#else
+#include <ares.h>
+#endif
 #include <arpa/inet.h>
 
 #include <algorithm>
