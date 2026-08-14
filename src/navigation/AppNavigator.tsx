@@ -4,11 +4,16 @@ import {createNativeStackNavigator} from '@react-navigation/native-stack';
 import React from 'react';
 import {StyleSheet, Text} from 'react-native';
 
+import type {RecentQueries} from '../history/RecentQueries';
 import type {NativeDns} from '../native/NativeDns';
 import type {ResultActions} from '../results/actions';
-import {PlaceholderScreen} from '../screens/PlaceholderScreen';
+import {HistoryScreen} from '../screens/HistoryScreen';
 import {QueryScreen} from '../screens/QueryScreen';
 import {ResultScreen} from '../screens/ResultScreen';
+import {
+  SettingsScreen,
+  type SettingsConfirmation,
+} from '../screens/SettingsScreen';
 import {colors} from '../theme';
 import type {QueryStackParamList, TabParamList} from './types';
 
@@ -33,15 +38,19 @@ function SettingsTabIcon({color}: {color: string}) {
 
 function QueryNavigator({
   nativeDns,
+  recentQueries,
   resultActions,
 }: {
   nativeDns: NativeDns;
+  recentQueries: RecentQueries;
   resultActions: ResultActions;
 }) {
   return (
     <QueryStack.Navigator>
       <QueryStack.Screen name="QueryForm" options={{headerShown: false}}>
-        {props => <QueryScreen {...props} nativeDns={nativeDns} />}
+        {props => (
+          <QueryScreen {...props} nativeDns={nativeDns} recentQueries={recentQueries} />
+        )}
       </QueryStack.Screen>
       <QueryStack.Screen name="Result" options={{headerShown: false}}>
         {props => <ResultScreen {...props} resultActions={resultActions} />}
@@ -52,10 +61,14 @@ function QueryNavigator({
 
 export function AppNavigator({
   nativeDns,
+  recentQueries,
   resultActions,
+  settingsConfirmation,
 }: {
   nativeDns: NativeDns;
+  recentQueries: RecentQueries;
   resultActions: ResultActions;
+  settingsConfirmation: SettingsConfirmation;
 }) {
   return (
     <NavigationContainer>
@@ -70,18 +83,27 @@ export function AppNavigator({
           name="Query"
           options={{tabBarIcon: QueryTabIcon}}>
           {() => (
-            <QueryNavigator nativeDns={nativeDns} resultActions={resultActions} />
+            <QueryNavigator
+              nativeDns={nativeDns}
+              recentQueries={recentQueries}
+              resultActions={resultActions}
+            />
           )}
         </Tabs.Screen>
         <Tabs.Screen
           name="History"
           options={{tabBarIcon: HistoryTabIcon}}>
-          {() => <PlaceholderScreen title="History" />}
+          {props => <HistoryScreen {...props} recentQueries={recentQueries} />}
         </Tabs.Screen>
         <Tabs.Screen
           name="Settings"
           options={{tabBarIcon: SettingsTabIcon}}>
-          {() => <PlaceholderScreen title="Settings" />}
+          {() => (
+            <SettingsScreen
+              confirmation={settingsConfirmation}
+              recentQueries={recentQueries}
+            />
+          )}
         </Tabs.Screen>
       </Tabs.Navigator>
     </NavigationContainer>

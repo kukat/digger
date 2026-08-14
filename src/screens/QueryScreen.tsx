@@ -1,5 +1,5 @@
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import React, {useRef, useState} from 'react';
+import React, {useEffect, useRef, useState} from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -12,6 +12,7 @@ import {
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import type {DnsResolver, DnsQuery} from '../../specs/NativeDnsModule';
+import type {RecentQueries} from '../history/RecentQueries';
 import type {QueryStackParamList} from '../navigation/types';
 import {
   NativeDnsError,
@@ -23,6 +24,7 @@ import {colors} from '../theme';
 
 type Props = NativeStackScreenProps<QueryStackParamList, 'QueryForm'> & {
   nativeDns: NativeDns;
+  recentQueries: RecentQueries;
 };
 
 type QueryError = {
@@ -120,10 +122,10 @@ function normalizedDnsName(value: string): string | undefined {
   ) {
     return undefined;
   }
-  return `${labels.join('.')}.`;
+  return `${labels.join('.').toLowerCase()}.`;
 }
 
-export function QueryScreen({nativeDns, navigation}: Props) {
+export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props) {
   const [name, setName] = useState('');
   const [type, setType] = useState<DnsRecordType>('A');
   const [resolverMode, setResolverMode] = useState<DnsResolver['mode']>('system');
@@ -142,6 +144,16 @@ export function QueryScreen({nativeDns, navigation}: Props) {
   const nextQueryId = useRef(0);
   const activeQueryId = useRef<string | undefined>(undefined);
   const insets = useSafeAreaInsets();
+
+  useEffect(() => {
+    const recentQuery = route.params?.recentQuery;
+    if (!recentQuery) {
+      return;
+    }
+    setName(recentQuery.name.replace(/\.$/, ''));
+    setType(recentQuery.type);
+    navigation.setParams({recentQuery: undefined});
+  }, [navigation, route.params?.recentQuery]);
 
   function validateRequest(normalizedName: string): DnsQuery | undefined {
     if (!normalizedName) {
@@ -226,6 +238,7 @@ export function QueryScreen({nativeDns, navigation}: Props) {
     setIsLoading(true);
     const queryId = `query-${++nextQueryId.current}`;
     activeQueryId.current = queryId;
+    recentQueries.record({name: request.name, type: request.type}).catch(() => undefined);
 
     try {
       const result = await nativeDns.query(queryId, request);

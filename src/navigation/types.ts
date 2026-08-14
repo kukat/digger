@@ -1,7 +1,10 @@
+import type {NavigatorScreenParams} from '@react-navigation/native';
+
+import type {RecentQuery} from '../history/RecentQueries';
 import type {DnsRecordType, DnsResult} from '../native/NativeDns';
 
 export type QueryStackParamList = {
-  QueryForm: undefined;
+  QueryForm: {recentQuery?: RecentQuery} | undefined;
   Result: {
     name: string;
     type: DnsRecordType;
@@ -10,7 +13,7 @@ export type QueryStackParamList = {
 };
 
 export type TabParamList = {
-  Query: undefined;
+  Query: NavigatorScreenParams<QueryStackParamList> | undefined;
   History: undefined;
   Settings: undefined;
 };
