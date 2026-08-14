@@ -1,6 +1,13 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useMemo, useState } from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import {
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { QueryStackParamList } from '../navigation/types';
@@ -368,7 +375,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
     },
     flagsValue: {
       color: colors.ink,
-      fontFamily: 'Courier',
+      fontFamily: Platform.select({ android: 'monospace', default: 'Courier' }),
       fontSize: 13,
     },
     section: {
@@ -458,7 +465,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
     },
     digText: {
       color: colors.ink,
-      fontFamily: 'Courier',
+      fontFamily: Platform.select({ android: 'monospace', default: 'Courier' }),
       fontSize: 12,
       lineHeight: 18,
     },

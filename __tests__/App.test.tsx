@@ -1,5 +1,6 @@
 import React from 'react';
 import { act, fireEvent, render, screen } from '@testing-library/react-native';
+import { Platform } from 'react-native';
 
 import App from '../App';
 import { NativeDnsError, type DnsResult } from '../src/native/NativeDns';
@@ -394,6 +395,39 @@ test('switches Result views and copies or shares the selected text without savin
   expect(resultActions.share).toHaveBeenCalledWith(
     expect.stringContaining(';; ->>HEADER<<- opcode: QUERY, status: NOERROR'),
   );
+});
+
+test('uses Android’s monospace font for dig text', async () => {
+  const select = jest.spyOn(Platform, 'select');
+  select.mockImplementation(
+    ((spec: { android?: unknown; native?: unknown; default?: unknown }) =>
+      spec.android ?? spec.native ?? spec.default) as typeof Platform.select,
+  );
+
+  try {
+    const nativeDns = {
+      query: jest.fn(async () => answer),
+      cancel: jest.fn(),
+    };
+    render(<App nativeDns={nativeDns} />);
+    fireEvent.changeText(
+      screen.getByPlaceholderText('example.com'),
+      'example.com',
+    );
+    fireEvent.press(screen.getByRole('button', { name: 'Run Query' }));
+    await screen.findByText('NOERROR');
+    fireEvent.press(screen.getByRole('tab', { name: 'dig view' }));
+
+    expect(select).toHaveBeenCalledWith({
+      android: 'monospace',
+      default: 'Courier',
+    });
+    expect(screen.getByText(/Digger dig-style/)).toHaveStyle({
+      fontFamily: 'monospace',
+    });
+  } finally {
+    select.mockRestore();
+  }
 });
 
 test('exposes the compact Query controls with accessible guidance and state', () => {
