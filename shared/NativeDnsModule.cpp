@@ -8,6 +8,28 @@
 namespace facebook::react {
 namespace {
 
+std::string failureCode(digger::dns::FailureCode code) {
+  switch (code) {
+    case digger::dns::FailureCode::InvalidInput:
+      return "INVALID_INPUT";
+    case digger::dns::FailureCode::Timeout:
+      return "TIMEOUT";
+    case digger::dns::FailureCode::Cancelled:
+      return "CANCELLED";
+    case digger::dns::FailureCode::NetworkUnavailable:
+      return "NETWORK_UNAVAILABLE";
+    case digger::dns::FailureCode::InvalidResponse:
+      return "INVALID_RESPONSE";
+    case digger::dns::FailureCode::InternalNative:
+      return "INTERNAL_NATIVE";
+  }
+  return "INTERNAL_NATIVE";
+}
+
+std::string encodedFailure(digger::dns::Failure failure) {
+  return "DIGGER_DNS_" + failureCode(failure.code) + ": " + failure.message;
+}
+
 unsigned short portValue(double value) {
   if (!std::isfinite(value) || value < 1 || value > 65535 ||
       std::floor(value) != value) {
@@ -31,11 +53,12 @@ digger::dns::Query toServiceQuery(const DnsQueryValue& value) {
     query.resolver.port = portValue(*value.resolver.port);
   }
   query.transport = value.transport;
-  if (!std::isfinite(value.timeoutMs) || value.timeoutMs < 1 ||
+  if (!std::isfinite(value.timeoutMs) || value.timeoutMs < 250 ||
       value.timeoutMs > 120000 || std::floor(value.timeoutMs) != value.timeoutMs ||
       !std::isfinite(value.retries) || value.retries < 0 || value.retries > 10 ||
       std::floor(value.retries) != value.retries) {
-    throw std::invalid_argument("Timeout and retry values must be valid.");
+    throw std::invalid_argument(
+        "Timeout must be 250–120000 ms and retries must be 0–10.");
   }
   query.timeoutMs = static_cast<int>(value.timeoutMs);
   query.retries = static_cast<int>(value.retries);
@@ -109,9 +132,16 @@ AsyncPromise<DnsResultValue> NativeDnsModule::query(jsi::Runtime& runtime,
         [promise](digger::dns::Result result) mutable {
           promise.resolve(toValue(std::move(result)));
         },
-        [promise](std::string error) mutable { promise.reject(std::move(error)); });
-  } catch (const std::exception& error) {
-    promise.reject(error.what());
+        [promise](digger::dns::Failure failure) mutable {
+          promise.reject(encodedFailure(std::move(failure)));
+        });
+  } catch (const std::invalid_argument& error) {
+    promise.reject(encodedFailure(
+        {digger::dns::FailureCode::InvalidInput, error.what()}));
+  } catch (const std::exception&) {
+    promise.reject(encodedFailure(
+        {digger::dns::FailureCode::InternalNative,
+         "The native DNS engine could not start the Query."}));
   }
   return promise;
 }

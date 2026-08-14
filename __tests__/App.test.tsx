@@ -1,8 +1,8 @@
 import React from 'react';
-import {fireEvent, render, screen} from '@testing-library/react-native';
+import {act, fireEvent, render, screen} from '@testing-library/react-native';
 
 import App from '../App';
-import type {DnsResult} from '../src/native/NativeDns';
+import {NativeDnsError, type DnsResult} from '../src/native/NativeDns';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -82,6 +82,7 @@ test('runs an AAAA Query against a custom IPv6 resolver', async () => {
   render(<App nativeDns={nativeDns} />);
   fireEvent.changeText(screen.getByPlaceholderText('example.com'), 'example.com');
   fireEvent.press(screen.getByRole('radio', {name: 'AAAA'}));
+  fireEvent.press(screen.getByRole('button', {name: 'Advanced settings'}));
   fireEvent.press(screen.getByRole('radio', {name: 'Custom resolver'}));
   fireEvent.changeText(
     screen.getByLabelText('Custom resolver address'),
@@ -98,6 +99,123 @@ test('runs an AAAA Query against a custom IPv6 resolver', async () => {
       resolver: {mode: 'custom', address: '2001:db8::53', port: 5353},
     }),
   );
+});
+
+test('passes configurable transport, EDNS, DO, timeout, and retries', async () => {
+  const nativeDns = {
+    query: jest.fn(async () => ({...answer, transport: 'tcp' as const})),
+    cancel: jest.fn(),
+  };
+
+  render(<App nativeDns={nativeDns} />);
+  fireEvent.changeText(screen.getByPlaceholderText('example.com'), 'example.com');
+  fireEvent.press(screen.getByRole('button', {name: 'Advanced settings'}));
+  fireEvent.press(screen.getByRole('radio', {name: 'TCP only'}));
+  fireEvent.press(screen.getByRole('switch', {name: 'Request DNSSEC records'}));
+  fireEvent.changeText(screen.getByLabelText('EDNS UDP size'), '1400');
+  fireEvent.changeText(screen.getByLabelText('Timeout in milliseconds'), '750');
+  fireEvent.changeText(screen.getByLabelText('Retries'), '2');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+
+  expect(await screen.findByText('NOERROR')).toBeOnTheScreen();
+  expect(screen.getByText(/TCP · System resolver/)).toBeOnTheScreen();
+  expect(nativeDns.query).toHaveBeenCalledWith(
+    'query-1',
+    expect.objectContaining({
+      transport: 'tcp',
+      dnssecOk: true,
+      ednsUdpSize: 1400,
+      timeoutMs: 750,
+      retries: 2,
+    }),
+  );
+});
+
+test('can disable EDNS without changing other advanced settings', async () => {
+  const nativeDns = {
+    query: jest.fn(async () => answer),
+    cancel: jest.fn(),
+  };
+
+  render(<App nativeDns={nativeDns} />);
+  fireEvent.changeText(screen.getByPlaceholderText('example.com'), 'example.com');
+  fireEvent.press(screen.getByRole('button', {name: 'Advanced settings'}));
+  fireEvent.press(screen.getByRole('radio', {name: 'Start with UDP'}));
+  fireEvent.press(screen.getByRole('switch', {name: 'Enable EDNS'}));
+  fireEvent.changeText(screen.getByLabelText('Retries'), '3');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+
+  await screen.findByText('NOERROR');
+  expect(nativeDns.query).toHaveBeenCalledWith(
+    'query-1',
+    expect.objectContaining({
+      transport: 'udp',
+      retries: 3,
+      ednsUdpSize: undefined,
+    }),
+  );
+});
+
+test('locks Query fields while active and cancellation cannot affect the next Query', async () => {
+  const first = deferred<DnsResult>();
+  const second = deferred<DnsResult>();
+  const nativeDns = {
+    query: jest
+      .fn<Promise<DnsResult>, []>()
+      .mockReturnValueOnce(first.promise)
+      .mockReturnValueOnce(second.promise),
+    cancel: jest.fn(),
+  };
+
+  render(<App nativeDns={nativeDns} />);
+  fireEvent.press(screen.getByRole('button', {name: 'Advanced settings'}));
+  const nameInput = screen.getByPlaceholderText('example.com');
+  fireEvent.changeText(nameInput, 'first.example');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+
+  expect(nameInput).toBeDisabled();
+  expect(screen.getByRole('radio', {name: 'AAAA'})).toBeDisabled();
+  expect(screen.getByRole('radio', {name: 'TCP only'})).toBeDisabled();
+  expect(screen.getByLabelText('EDNS UDP size')).toBeDisabled();
+  expect(screen.getByLabelText('Timeout in milliseconds')).toBeDisabled();
+  expect(screen.getByRole('switch', {name: 'Enable EDNS'})).toBeDisabled();
+  expect(screen.getByRole('button', {name: 'Cancel Query'})).toBeOnTheScreen();
+
+  fireEvent.press(screen.getByRole('button', {name: 'Cancel Query'}));
+  expect(nativeDns.cancel).toHaveBeenCalledWith('query-1');
+  expect(screen.getByText('Query cancelled')).toBeOnTheScreen();
+  expect(nameInput).toBeEnabled();
+
+  fireEvent.changeText(nameInput, 'second.example');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+  await act(async () => first.resolve(answer));
+  expect(screen.queryByText('93.184.216.34')).not.toBeOnTheScreen();
+
+  second.resolve({
+    ...answer,
+    answer: [
+      {name: 'second.example.', type: 'A', ttl: 60, data: '192.0.2.2'},
+    ],
+  });
+  expect(await screen.findByText('192.0.2.2')).toBeOnTheScreen();
+});
+
+test('shows classified native failures distinctly', async () => {
+  const nativeDns = {
+    query: jest.fn(async () => {
+      throw new NativeDnsError('timeout', 'No response arrived before the deadline.');
+    }),
+    cancel: jest.fn(),
+  };
+
+  render(<App nativeDns={nativeDns} />);
+  fireEvent.changeText(screen.getByPlaceholderText('example.com'), 'slow.test');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+
+  expect(await screen.findByText('Query timed out')).toBeOnTheScreen();
+  expect(
+    screen.getByText('No response arrived before the deadline.'),
+  ).toBeOnTheScreen();
 });
 
 test('returning from Result retains the Query form and discards the Result', async () => {

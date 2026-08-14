@@ -57,14 +57,28 @@ struct Result {
   double wireBytes{0};
 };
 
+enum class FailureCode {
+  InvalidInput,
+  Timeout,
+  Cancelled,
+  NetworkUnavailable,
+  InvalidResponse,
+  InternalNative,
+};
+
+struct Failure {
+  FailureCode code{FailureCode::InternalNative};
+  std::string message;
+};
+
 class DnsService {
  public:
   using Success = std::function<void(Result)>;
-  using Failure = std::function<void(std::string)>;
+  using FailureCallback = std::function<void(Failure)>;
 
   virtual ~DnsService() = default;
   virtual void query(std::string queryId, Query query, Success success,
-                     Failure failure) = 0;
+                     FailureCallback failure) = 0;
   virtual void cancel(const std::string& queryId) = 0;
 };
 

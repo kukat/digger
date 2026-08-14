@@ -25,11 +25,13 @@ npm run test:native # requires Homebrew c-ares
 
 ## Native DNS
 
-Both apps expose the shared C++ c-ares 1.34.5 DNS service through the typed `NativeDnsModule` TurboModule. They support A and AAAA Queries through the system resolver or a custom IPv4/IPv6 resolver and port.
+Both apps expose the shared C++ c-ares 1.34.5 DNS service through the typed `NativeDnsModule` TurboModule. They support cancellable A and AAAA Queries through the system resolver or a custom IPv4/IPv6 resolver and port, with UDP/TCP selection, truncation fallback, EDNS, DO, timeouts, retries, and classified failures.
 
 The iOS build uses the pinned `c-ares.podspec`. iOS may ask for local-network access when the custom resolver is on the local network; allow it for those Queries.
 
 The Android CMake build downloads the checksum-pinned c-ares release and packages the native module for every configured release ABI. At startup, Android supplies c-ares with `ConnectivityManager`, so each system Query uses the current network's resolver configuration.
+
+Every Query gets a fresh c-ares channel, preventing later Queries from reusing stale resolver state after a network transition. Deterministic coverage, binary-size measurements, build requirements, and the physical-device verification matrix are recorded in [`docs/native-dns-spike.md`](docs/native-dns-spike.md).
 
 ## App workflow seam
 

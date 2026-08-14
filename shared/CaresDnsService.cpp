@@ -10,6 +10,7 @@
 #include <algorithm>
 #include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
 #include <memory>
@@ -25,23 +26,43 @@ namespace {
 
 using Clock = std::chrono::steady_clock;
 
-std::string statusMessage(int status) {
+Failure statusFailure(int status, bool deadlineExpired = false) {
+  if (deadlineExpired || status == ARES_ETIMEOUT) {
+    return {FailureCode::Timeout,
+            "No valid DNS response arrived before the Query deadline."};
+  }
   switch (status) {
-    case ARES_ETIMEOUT:
-      return "The DNS Query timed out.";
     case ARES_ECANCELLED:
-      return "The DNS Query was cancelled.";
+      return {FailureCode::Cancelled, "The DNS Query was cancelled."};
     case ARES_ECONNREFUSED:
-      return "The resolver refused the connection.";
     case ARES_ENOSERVER:
-      return "No DNS resolver is available.";
+    case ARES_EOF:
+      return {FailureCode::NetworkUnavailable,
+              "No DNS resolver is available on the current network."};
     case ARES_EBADRESP:
+    case ARES_EFORMERR:
+      return {FailureCode::InvalidResponse,
+              "The resolver returned an invalid DNS response."};
     case ARES_EBADQUERY:
-      return "The resolver returned an invalid DNS response.";
+    case ARES_EBADNAME:
+      return {FailureCode::InvalidInput, "The DNS Query is invalid."};
     default:
-      return std::string("The DNS Query failed: ") + ares_strerror(status);
+      return {FailureCode::InternalNative,
+              std::string("The native DNS engine failed: ") +
+                  ares_strerror(status)};
   }
 }
+
+class FailureException final : public std::runtime_error {
+ public:
+  explicit FailureException(Failure failure)
+      : std::runtime_error(failure.message), failure_(std::move(failure)) {}
+
+  const Failure& failure() const { return failure_; }
+
+ private:
+  Failure failure_;
+};
 
 std::string canonicalName(const char* value) {
   std::string name = value == nullptr ? "" : value;
@@ -127,24 +148,26 @@ std::string normalizeCustomServer(const std::string& address,
   if (inet_pton(AF_INET6, address.c_str(), &ipv6) == 1) {
     return "[" + address + "]:" + std::to_string(port);
   }
-  throw std::invalid_argument(
-      "Custom resolver address must be a valid IPv4 or IPv6 address.");
+  throw FailureException(
+      {FailureCode::InvalidInput,
+       "Custom resolver address must be a valid IPv4 or IPv6 address."});
 }
 
-class CaresDnsService final : public DnsService,
-                              public std::enable_shared_from_this<CaresDnsService> {
+class CaresDnsService final
+    : public DnsService,
+      public std::enable_shared_from_this<CaresDnsService> {
  public:
   CaresDnsService() {
     const auto status = ares_library_init(ARES_LIB_INIT_ALL);
     if (status != ARES_SUCCESS) {
-      throw std::runtime_error(statusMessage(status));
+      throw FailureException(statusFailure(status));
     }
   }
 
   ~CaresDnsService() override { ares_library_cleanup(); }
 
   void query(std::string queryId, Query query, Success success,
-             Failure failure) override {
+             FailureCallback failure) override {
     auto operation = std::make_shared<Operation>();
     operation->owner = shared_from_this();
     operation->queryId = std::move(queryId);
@@ -153,24 +176,30 @@ class CaresDnsService final : public DnsService,
     operation->failure = std::move(failure);
     operation->started = Clock::now();
 
-    try {
-      initialize(*operation);
-    } catch (const std::exception& error) {
-      operation->failure(error.what());
-      return;
-    }
-
+    bool duplicateIdentifier = false;
     {
       std::lock_guard lock(mutex_);
       if (operations_.contains(operation->queryId)) {
-        ares_destroy(operation->channel);
-        operation->failure("A DNS Query with this identifier is already active.");
-        return;
+        duplicateIdentifier = true;
+      } else {
+        operations_[operation->queryId] = operation;
       }
-      operations_[operation->queryId] = operation;
+    }
+    if (duplicateIdentifier) {
+      operation->failure(
+          {FailureCode::InvalidInput,
+           "A DNS Query with this identifier is already active."});
+      return;
     }
 
-    std::thread([operation] { operation->run(); }).detach();
+    try {
+      std::thread([operation] { operation->run(); }).detach();
+    } catch (const std::exception&) {
+      release(operation->queryId, operation.get());
+      operation->failure(
+          {FailureCode::InternalNative,
+           "The native DNS engine could not start the Query worker."});
+    }
   }
 
   void cancel(const std::string& queryId) override {
@@ -183,7 +212,7 @@ class CaresDnsService final : public DnsService,
       }
       operation = found->second;
     }
-    ares_cancel(operation->channel);
+    operation->cancel();
   }
 
  private:
@@ -192,12 +221,23 @@ class CaresDnsService final : public DnsService,
     std::string queryId;
     Query query;
     Success success;
-    Failure failure;
+    FailureCallback failure;
     ares_channel_t* channel{};
     Clock::time_point started;
+    Clock::time_point deadline;
     std::mutex stateMutex;
-    bool finished{false};
+    std::condition_variable stateCondition;
+    bool callbackStarted{false};
+    bool callbackReturned{false};
+    bool cancellationRequested{false};
+    bool querySubmitted{false};
+    bool deadlineExpired{false};
     std::string actualTransport{"udp"};
+
+    std::mutex channelMutex;
+    std::condition_variable channelCondition;
+    size_t channelUsers{0};
+    bool destroyingChannel{false};
 
     static void serverState(const char*, ares_bool_t, int transport,
                             void* data) {
@@ -212,7 +252,12 @@ class CaresDnsService final : public DnsService,
                          const ares_dns_record_t* dnsResponse) {
       auto* operation = static_cast<Operation*>(data);
       if (status != ARES_SUCCESS || dnsResponse == nullptr) {
-        operation->completeFailure(statusMessage(status));
+        bool expired;
+        {
+          std::lock_guard lock(operation->stateMutex);
+          expired = operation->deadlineExpired;
+        }
+        operation->completeFailure(statusFailure(status, expired));
         return;
       }
 
@@ -258,14 +303,41 @@ class CaresDnsService final : public DnsService,
     }
 
     void run() {
-      ares_dns_record_t* request = nullptr;
-      unsigned short requestFlags = ARES_FLAG_RD;
-      if (query.dnssecOk) {
-        requestFlags |= ARES_FLAG_CD;
+      try {
+        owner->initialize(*this);
+      } catch (const FailureException& error) {
+        completeFailure(error.failure());
+      } catch (const std::exception&) {
+        completeFailure(
+            {FailureCode::InternalNative,
+             "The native DNS engine could not initialize the Query."});
       }
-      auto status = ares_dns_record_create(&request, 0, requestFlags,
-                                           ARES_OPCODE_QUERY,
-                                           ARES_RCODE_NOERROR);
+
+      bool shouldSubmit = false;
+      bool cancelledBeforeSubmission = false;
+      bool expiredBeforeSubmission = false;
+      {
+        std::lock_guard lock(stateMutex);
+        if (!callbackStarted) {
+          cancelledBeforeSubmission = cancellationRequested;
+          expiredBeforeSubmission = Clock::now() >= deadline;
+          shouldSubmit =
+              !cancelledBeforeSubmission && !expiredBeforeSubmission;
+          deadlineExpired = expiredBeforeSubmission;
+        }
+      }
+      if (cancelledBeforeSubmission) {
+        completeFailure(
+            {FailureCode::Cancelled, "The DNS Query was cancelled."});
+      } else if (expiredBeforeSubmission) {
+        completeFailure(statusFailure(ARES_ETIMEOUT, true));
+      }
+
+      ares_dns_record_t* request = nullptr;
+      auto status = shouldSubmit
+          ? ares_dns_record_create(&request, 0, ARES_FLAG_RD,
+                                   ARES_OPCODE_QUERY, ARES_RCODE_NOERROR)
+          : ARES_ECANCELLED;
       const auto type = query.type == "AAAA" ? ARES_REC_TYPE_AAAA
                                              : ARES_REC_TYPE_A;
       if (status == ARES_SUCCESS) {
@@ -281,128 +353,257 @@ class CaresDnsService final : public DnsService,
           status = ares_dns_rr_set_u16(opt, ARES_RR_OPT_UDP_SIZE,
                                        *query.ednsUdpSize);
         }
-        if (status == ARES_SUCCESS && query.dnssecOk) {
-          status = ares_dns_rr_set_u16(opt, ARES_RR_OPT_FLAGS, 0x8000);
+        if (status == ARES_SUCCESS) {
+          status = ares_dns_rr_set_u8(opt, ARES_RR_OPT_VERSION, 0);
+        }
+        if (status == ARES_SUCCESS) {
+          status = ares_dns_rr_set_u16(opt, ARES_RR_OPT_FLAGS,
+                                       query.dnssecOk ? 0x8000 : 0);
         }
       }
       if (status == ARES_SUCCESS) {
-        status = ares_send_dnsrec(channel, request, &Operation::response, this,
-                                  nullptr);
-      }
-      ares_dns_record_destroy(request);
-      if (status != ARES_SUCCESS) {
-        completeFailure(statusMessage(status));
-      }
-
-      while (true) {
+        bool cancelled;
         {
           std::lock_guard lock(stateMutex);
-          if (finished) {
-            break;
-          }
+          cancelled = cancellationRequested;
         }
-        std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        status = cancelled
+            ? ARES_ECANCELLED
+            : ares_send_dnsrec(channel, request, &Operation::response, this,
+                               nullptr);
       }
-      ares_destroy(channel);
-      channel = nullptr;
-      auto service = std::move(owner);
-      service->release(queryId);
+      if (request != nullptr) {
+        ares_dns_record_destroy(request);
+      }
+      if (status != ARES_SUCCESS) {
+        completeFailure(statusFailure(status));
+      }
+
+      bool shouldCancel = false;
+      {
+        std::lock_guard lock(stateMutex);
+        querySubmitted = status == ARES_SUCCESS;
+        shouldCancel = cancellationRequested && querySubmitted;
+      }
+      if (shouldCancel) {
+        completeFailure(
+            {FailureCode::Cancelled, "The DNS Query was cancelled."});
+        cancelChannel();
+      }
+
+      bool shouldExpire = false;
+      {
+        std::unique_lock lock(stateMutex);
+        if (!stateCondition.wait_until(
+                lock, deadline, [this] { return callbackStarted; })) {
+          deadlineExpired = true;
+          shouldExpire = true;
+        }
+      }
+      if (shouldExpire) {
+        completeFailure(statusFailure(ARES_ETIMEOUT, true));
+        cancelChannel();
+      }
+      {
+        std::unique_lock lock(stateMutex);
+        stateCondition.wait(lock, [this] { return callbackReturned; });
+      }
+
+      auto service = owner;
+      service->release(queryId, this);
+      destroyChannel();
+      owner.reset();
+    }
+
+    void cancel() {
+      bool shouldCancelChannel;
+      {
+        std::lock_guard lock(stateMutex);
+        if (callbackStarted) {
+          return;
+        }
+        cancellationRequested = true;
+        shouldCancelChannel = querySubmitted;
+      }
+      completeFailure(
+          {FailureCode::Cancelled, "The DNS Query was cancelled."});
+      if (shouldCancelChannel) {
+        cancelChannel();
+      }
+    }
+
+    void cancelChannel() {
+      ares_channel_t* activeChannel;
+      {
+        std::lock_guard lock(channelMutex);
+        if (destroyingChannel || channel == nullptr) {
+          return;
+        }
+        ++channelUsers;
+        activeChannel = channel;
+      }
+      ares_cancel(activeChannel);
+      {
+        std::lock_guard lock(channelMutex);
+        --channelUsers;
+        if (channelUsers == 0) {
+          channelCondition.notify_all();
+        }
+      }
+    }
+
+    void destroyChannel() {
+      ares_channel_t* channelToDestroy;
+      {
+        std::unique_lock lock(channelMutex);
+        destroyingChannel = true;
+        channelCondition.wait(lock, [this] { return channelUsers == 0; });
+        channelToDestroy = std::exchange(channel, nullptr);
+      }
+      if (channelToDestroy != nullptr) {
+        ares_destroy(channelToDestroy);
+      }
     }
 
     void completeSuccess(Result result) {
       Success callback;
       {
         std::lock_guard lock(stateMutex);
-        if (finished) {
+        if (callbackStarted) {
           return;
         }
-        finished = true;
+        callbackStarted = true;
         callback = success;
       }
-      callback(std::move(result));
+      stateCondition.notify_all();
+      try {
+        callback(std::move(result));
+      } catch (...) {
+      }
+      callbackFinished();
     }
 
-    void completeFailure(std::string message) {
-      Failure callback;
+    void completeFailure(Failure queryFailure) {
+      FailureCallback callback;
       {
         std::lock_guard lock(stateMutex);
-        if (finished) {
+        if (callbackStarted) {
           return;
         }
-        finished = true;
+        callbackStarted = true;
         callback = failure;
       }
-      callback(std::move(message));
+      stateCondition.notify_all();
+      try {
+        callback(std::move(queryFailure));
+      } catch (...) {
+      }
+      callbackFinished();
+    }
+
+    void callbackFinished() {
+      {
+        std::lock_guard lock(stateMutex);
+        callbackReturned = true;
+      }
+      stateCondition.notify_all();
     }
   };
 
   void initialize(Operation& operation) {
+    if (operation.queryId.empty()) {
+      throw FailureException(
+          {FailureCode::InvalidInput, "A Query identifier is required."});
+    }
     if (operation.query.name.empty()) {
-      throw std::invalid_argument("DNS name is required.");
+      throw FailureException(
+          {FailureCode::InvalidInput, "DNS name is required."});
     }
     if (operation.query.type != "A" && operation.query.type != "AAAA") {
-      throw std::invalid_argument("Only A and AAAA Queries are supported.");
+      throw FailureException(
+          {FailureCode::InvalidInput,
+           "Only A and AAAA Queries are supported."});
     }
     if (operation.query.transport != "auto" &&
         operation.query.transport != "udp" &&
         operation.query.transport != "tcp") {
-      throw std::invalid_argument("DNS transport is invalid.");
+      throw FailureException(
+          {FailureCode::InvalidInput, "DNS transport is invalid."});
     }
-    if (operation.query.timeoutMs < 1 || operation.query.retries < 0) {
-      throw std::invalid_argument("Timeout and retry values must be valid.");
+    if (operation.query.timeoutMs < 250 ||
+        operation.query.timeoutMs > 120000 || operation.query.retries < 0 ||
+        operation.query.retries > 10) {
+      throw FailureException(
+          {FailureCode::InvalidInput,
+           "Timeout must be 250–120000 ms and retries must be 0–10."});
+    }
+    if (operation.query.ednsUdpSize.has_value() &&
+        *operation.query.ednsUdpSize < 512) {
+      throw FailureException(
+          {FailureCode::InvalidInput,
+           "EDNS UDP size must be at least 512 bytes."});
+    }
+    if (operation.query.dnssecOk &&
+        !operation.query.ednsUdpSize.has_value()) {
+      throw FailureException(
+          {FailureCode::InvalidInput,
+           "DNSSEC OK requires EDNS to be enabled."});
+    }
+
+    std::optional<std::string> customServer;
+    if (operation.query.resolver.mode == Resolver::Mode::Custom) {
+      if (!operation.query.resolver.address.has_value() ||
+          !operation.query.resolver.port.has_value() ||
+          *operation.query.resolver.port == 0) {
+        throw FailureException(
+            {FailureCode::InvalidInput,
+             "Custom resolver address and port are required."});
+      }
+      customServer = normalizeCustomServer(
+          *operation.query.resolver.address, *operation.query.resolver.port);
     }
 
     ares_options options{};
     options.timeout = operation.query.timeoutMs;
+    options.maxtimeout = operation.query.timeoutMs;
     options.tries = operation.query.retries + 1;
     options.flags = ARES_FLAG_STAYOPEN | ARES_FLAG_NOCHECKRESP;
     if (operation.query.transport == "tcp") {
       options.flags |= ARES_FLAG_USEVC;
       operation.actualTransport = "tcp";
     }
-    if (operation.query.ednsUdpSize.has_value()) {
-      options.flags |= ARES_FLAG_EDNS;
-      options.ednspsz = *operation.query.ednsUdpSize;
-    }
     options.evsys = ARES_EVSYS_DEFAULT;
-    auto optionMask = ARES_OPT_TIMEOUTMS | ARES_OPT_TRIES | ARES_OPT_FLAGS |
-                      ARES_OPT_EVENT_THREAD;
-    if (operation.query.ednsUdpSize.has_value()) {
-      optionMask |= ARES_OPT_EDNSPSZ;
-    }
+    const auto optionMask = ARES_OPT_TIMEOUTMS | ARES_OPT_MAXTIMEOUTMS |
+                            ARES_OPT_TRIES | ARES_OPT_FLAGS |
+                            ARES_OPT_EVENT_THREAD;
     const auto status =
         ares_init_options(&operation.channel, &options, optionMask);
     if (status != ARES_SUCCESS) {
-      throw std::runtime_error(statusMessage(status));
+      throw FailureException(statusFailure(status));
     }
     ares_set_server_state_callback(operation.channel, &Operation::serverState,
                                    &operation);
 
-    if (operation.query.resolver.mode == Resolver::Mode::Custom) {
-      if (!operation.query.resolver.address.has_value() ||
-          !operation.query.resolver.port.has_value() ||
-          *operation.query.resolver.port == 0) {
-        ares_destroy(operation.channel);
-        operation.channel = nullptr;
-        throw std::invalid_argument(
-            "Custom resolver address and port are required.");
-      }
-      const auto server = normalizeCustomServer(
-          *operation.query.resolver.address, *operation.query.resolver.port);
-      const auto serverStatus =
-          ares_set_servers_ports_csv(operation.channel, server.c_str());
+    if (customServer.has_value()) {
+      const auto serverStatus = ares_set_servers_ports_csv(
+          operation.channel, customServer->c_str());
       if (serverStatus != ARES_SUCCESS) {
-        ares_destroy(operation.channel);
-        operation.channel = nullptr;
-        throw std::invalid_argument(statusMessage(serverStatus));
+        operation.destroyChannel();
+        throw FailureException(statusFailure(serverStatus));
       }
     }
+
+    const auto attempts = static_cast<long long>(operation.query.retries) + 1;
+    const auto totalMs =
+        std::max<long long>(1, operation.query.timeoutMs * attempts);
+    operation.deadline =
+        operation.started + std::chrono::milliseconds(totalMs);
   }
 
-  void release(const std::string& queryId) {
+  void release(const std::string& queryId, const Operation* operation) {
     std::lock_guard lock(mutex_);
     const auto found = operations_.find(queryId);
-    if (found == operations_.end()) {
+    if (found == operations_.end() || found->second.get() != operation) {
       return;
     }
     operations_.erase(found);
