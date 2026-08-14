@@ -408,11 +408,14 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       paddingTop: 12,
     },
     recordType: {
+      alignItems: 'center',
       backgroundColor: colors.accentSoft,
       borderRadius: 8,
+      justifyContent: 'center',
       marginRight: 10,
       paddingHorizontal: 9,
       paddingVertical: 6,
+      width: 76,
     },
     recordTypeText: {
       color: colors.accent,
