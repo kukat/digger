@@ -20,9 +20,16 @@ import {
   type SettingsConfirmation,
 } from '../screens/SettingsScreen';
 import { useColors } from '../theme';
-import type { QueryStackParamList, TabParamList } from './types';
+import type {
+  HistoryStackParamList,
+  QueryStackParamList,
+  SettingsStackParamList,
+  TabParamList,
+} from './types';
 
 const QueryStack = createNativeStackNavigator<QueryStackParamList>();
+const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
+const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
 
 type TabIconProps = { color: string; size: number };
@@ -39,6 +46,11 @@ function SettingsTabIcon({ color, size }: TabIconProps) {
   return <Ionicons color={color} name="settings-outline" size={size} />;
 }
 
+const nativeStackScreenOptions = {
+  headerShadowVisible: false,
+  headerTitleAlign: 'left' as const,
+};
+
 function QueryNavigator({
   nativeDns,
   recentQueries,
@@ -49,8 +61,8 @@ function QueryNavigator({
   resultActions: ResultActions;
 }) {
   return (
-    <QueryStack.Navigator>
-      <QueryStack.Screen name="QueryForm" options={{ headerShown: false }}>
+    <QueryStack.Navigator screenOptions={nativeStackScreenOptions}>
+      <QueryStack.Screen name="QueryForm" options={{ title: 'Query' }}>
         {props => (
           <QueryScreen
             {...props}
@@ -59,10 +71,47 @@ function QueryNavigator({
           />
         )}
       </QueryStack.Screen>
-      <QueryStack.Screen name="Result" options={{ headerShown: false }}>
+      <QueryStack.Screen
+        name="Result"
+        options={{
+          headerBackTitle: 'Query',
+          title: 'Result',
+        }}
+      >
         {props => <ResultScreen {...props} resultActions={resultActions} />}
       </QueryStack.Screen>
     </QueryStack.Navigator>
+  );
+}
+
+function HistoryNavigator({ recentQueries }: { recentQueries: RecentQueries }) {
+  return (
+    <HistoryStack.Navigator screenOptions={nativeStackScreenOptions}>
+      <HistoryStack.Screen name="HistoryHome" options={{ title: 'History' }}>
+        {props => <HistoryScreen {...props} recentQueries={recentQueries} />}
+      </HistoryStack.Screen>
+    </HistoryStack.Navigator>
+  );
+}
+
+function SettingsNavigator({
+  confirmation,
+  recentQueries,
+}: {
+  confirmation: SettingsConfirmation;
+  recentQueries: RecentQueries;
+}) {
+  return (
+    <SettingsStack.Navigator screenOptions={nativeStackScreenOptions}>
+      <SettingsStack.Screen name="SettingsHome" options={{ title: 'Settings' }}>
+        {() => (
+          <SettingsScreen
+            confirmation={confirmation}
+            recentQueries={recentQueries}
+          />
+        )}
+      </SettingsStack.Screen>
+    </SettingsStack.Navigator>
   );
 }
 
@@ -116,11 +165,11 @@ export function AppNavigator({
           )}
         </Tabs.Screen>
         <Tabs.Screen name="History" options={{ tabBarIcon: HistoryTabIcon }}>
-          {props => <HistoryScreen {...props} recentQueries={recentQueries} />}
+          {() => <HistoryNavigator recentQueries={recentQueries} />}
         </Tabs.Screen>
         <Tabs.Screen name="Settings" options={{ tabBarIcon: SettingsTabIcon }}>
           {() => (
-            <SettingsScreen
+            <SettingsNavigator
               confirmation={settingsConfirmation}
               recentQueries={recentQueries}
             />

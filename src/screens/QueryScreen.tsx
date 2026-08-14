@@ -313,13 +313,10 @@ export function QueryScreen({
     <ScrollView
       contentContainerStyle={[
         styles.screen,
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
+        { paddingBottom: insets.bottom + 20 },
       ]}
       keyboardShouldPersistTaps="handled"
     >
-      <Text style={styles.title}>Query</Text>
-      <Text style={styles.subtitle}>Inspect a DNS response</Text>
-
       <View style={styles.card}>
         <Text style={styles.label}>Name</Text>
         <TextInput
@@ -640,13 +637,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       backgroundColor: colors.background,
       flexGrow: 1,
       padding: 20,
-    },
-    title: { color: colors.ink, fontSize: 32, fontWeight: '700' },
-    subtitle: {
-      color: colors.muted,
-      fontSize: 15,
-      marginBottom: 22,
-      marginTop: 3,
     },
     card: {
       backgroundColor: colors.surface,

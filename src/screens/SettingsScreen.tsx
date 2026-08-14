@@ -58,11 +58,9 @@ export function SettingsScreen({
     <ScrollView
       contentContainerStyle={[
         styles.screen,
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
+        { paddingBottom: insets.bottom + 20 },
       ]}
     >
-      <Text style={styles.title}>Settings</Text>
-
       <Text style={styles.sectionTitle}>Privacy & data</Text>
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Your DNS data stays private</Text>
@@ -122,12 +120,6 @@ export function SettingsScreen({
 const createStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     screen: { backgroundColor: colors.background, flexGrow: 1, padding: 20 },
-    title: {
-      color: colors.ink,
-      fontSize: 32,
-      fontWeight: '700',
-      marginBottom: 22,
-    },
     sectionTitle: {
       color: colors.muted,
       fontSize: 12,

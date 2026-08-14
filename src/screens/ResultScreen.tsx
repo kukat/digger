@@ -8,8 +8,6 @@ import {
   Text,
   View,
 } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-
 import type { QueryStackParamList } from '../navigation/types';
 import type { DnsQuestion, DnsRecord } from '../native/NativeDns';
 import type { ResultActions } from '../results/actions';
@@ -102,7 +100,6 @@ function ResultSection({
 export function ResultScreen({ navigation, route, resultActions }: Props) {
   const { name, type, result } = route.params;
   const [view, setView] = useState<ResultView>('structured');
-  const insets = useSafeAreaInsets();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
   const server = result.server
@@ -120,7 +117,7 @@ export function ResultScreen({ navigation, route, resultActions }: Props) {
 
   return (
     <ScrollView
-      contentContainerStyle={[styles.screen, { paddingTop: insets.top + 12 }]}
+      contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.toolbar}>
@@ -160,7 +157,6 @@ export function ResultScreen({ navigation, route, resultActions }: Props) {
         accessible
         accessibilityLabel={`Query ${name}, ${type}. ${result.transport.toUpperCase()} via ${server}.`}
       >
-        <Text style={styles.eyebrow}>Current Result</Text>
         <Text style={styles.query}>
           {name} · {type}
         </Text>
@@ -299,24 +295,16 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       fontSize: 16,
       fontWeight: '600',
     },
-    eyebrow: {
-      color: colors.accent,
-      fontSize: 12,
-      fontWeight: '700',
-      letterSpacing: 1,
-      textTransform: 'uppercase',
-    },
     query: {
       color: colors.ink,
       flexShrink: 1,
-      fontSize: 24,
+      fontSize: 20,
       fontWeight: '700',
-      marginTop: 5,
     },
     route: {
       color: colors.muted,
       fontSize: 13,
-      marginTop: 5,
+      marginTop: 4,
     },
     metrics: {
       backgroundColor: colors.surface,

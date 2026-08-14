@@ -1,13 +1,14 @@
-import type { BottomTabScreenProps } from '@react-navigation/bottom-tabs';
+import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useMemo, useState } from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import type { RecentQueries } from '../history/RecentQueries';
-import type { TabParamList } from '../navigation/types';
+import type { HistoryStackParamList, TabParamList } from '../navigation/types';
 import { useColors } from '../theme';
 
-type Props = BottomTabScreenProps<TabParamList, 'History'> & {
+type Props = NativeStackScreenProps<HistoryStackParamList, 'HistoryHome'> & {
   recentQueries: RecentQueries;
 };
 
@@ -27,11 +28,9 @@ export function HistoryScreen({ navigation, recentQueries }: Props) {
     <ScrollView
       contentContainerStyle={[
         styles.screen,
-        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
+        { paddingBottom: insets.bottom + 20 },
       ]}
     >
-      <Text style={styles.title}>History</Text>
-      <Text style={styles.subtitle}>Recent Queries stored on this device</Text>
       {entries.length === 0 ? (
         <View style={styles.card}>
           <Text style={styles.empty}>No Recent Queries yet.</Text>
@@ -46,10 +45,12 @@ export function HistoryScreen({ navigation, recentQueries }: Props) {
                 accessibilityLabel={`Use ${name} ${entry.type}`}
                 accessibilityRole="button"
                 onPress={() =>
-                  navigation.navigate('Query', {
-                    screen: 'QueryForm',
-                    params: { recentQuery: entry },
-                  })
+                  navigation
+                    .getParent<BottomTabNavigationProp<TabParamList>>()
+                    ?.navigate('Query', {
+                      screen: 'QueryForm',
+                      params: { recentQuery: entry },
+                    })
                 }
                 style={styles.entry}
               >
@@ -78,13 +79,6 @@ export function HistoryScreen({ navigation, recentQueries }: Props) {
 const createStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     screen: { backgroundColor: colors.background, flexGrow: 1, padding: 20 },
-    title: { color: colors.ink, fontSize: 32, fontWeight: '700' },
-    subtitle: {
-      color: colors.muted,
-      fontSize: 15,
-      marginBottom: 22,
-      marginTop: 3,
-    },
     card: {
       backgroundColor: colors.surface,
       borderColor: colors.border,
