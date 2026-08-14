@@ -59,6 +59,20 @@ react {
  */
 def enableProguardInReleaseBuilds = false
 
+def releaseProperty = { name ->
+    providers.gradleProperty(name).orElse(providers.environmentVariable(name)).orNull
+}
+def releaseStoreFile = releaseProperty("DIGGER_ANDROID_KEYSTORE")
+def releaseStorePassword = releaseProperty("DIGGER_ANDROID_KEYSTORE_PASSWORD")
+def releaseKeyAlias = releaseProperty("DIGGER_ANDROID_KEY_ALIAS")
+def releaseKeyPassword = releaseProperty("DIGGER_ANDROID_KEY_PASSWORD")
+def releaseSigningConfigured = [
+    releaseStoreFile,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword,
+].every { it != null && !it.isBlank() }
+
 /**
  * The preferred build flavor of JavaScriptCore (JSC)
  *
@@ -83,7 +97,10 @@ android {
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1
-        versionName "1.0"
+        versionName "1.0.0"
+        ndk {
+            abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"
+        }
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
     signingConfigs {
@@ -92,6 +109,14 @@ android {
             storePassword 'android'
             keyAlias 'androiddebugkey'
             keyPassword 'android'
+        }
+        release {
+            if (releaseSigningConfigured) {
+                storeFile file(releaseStoreFile)
+                storePassword releaseStorePassword
+                keyAlias releaseKeyAlias
+                keyPassword releaseKeyPassword
+            }
         }
     }
     externalNativeBuild {
@@ -104,13 +129,34 @@ android {
             signingConfig signingConfigs.debug
         }
         release {
-            // Caution! In production, you need to generate your own keystore file.
-            // see https://reactnative.dev/docs/signed-apk-android.
-            signingConfig signingConfigs.debug
+            if (releaseSigningConfigured) {
+                signingConfig signingConfigs.release
+            }
             minifyEnabled enableProguardInReleaseBuilds
             proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
         }
     }
+}
+
+tasks.register("verifyReleaseSigning") {
+    group = "verification"
+    description = "Fails release builds that do not provide a non-debug signing key."
+    doLast {
+        if (!releaseSigningConfigured) {
+            throw new GradleException(
+                "Release signing requires DIGGER_ANDROID_KEYSTORE, " +
+                "DIGGER_ANDROID_KEYSTORE_PASSWORD, DIGGER_ANDROID_KEY_ALIAS, " +
+                "and DIGGER_ANDROID_KEY_PASSWORD (Gradle properties or environment variables)."
+            )
+        }
+        if (!file(releaseStoreFile).isFile()) {
+            throw new GradleException("DIGGER_ANDROID_KEYSTORE does not name a readable keystore.")
+        }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(tasks.named("verifyReleaseSigning"))
 }
 
 dependencies {

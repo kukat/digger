@@ -189,7 +189,7 @@ test('clears Recent Queries after confirmation and displays privacy and About in
   expect(
     await screen.findByText(/Digger does not upload Query data/),
   ).toBeOnTheScreen();
-  expect(screen.getByText('Version 0.0.1')).toBeOnTheScreen();
+  expect(screen.getByText('Version 1.0.0')).toBeOnTheScreen();
   expect(screen.getByText('Open-source licenses & notices')).toBeOnTheScreen();
   expect(screen.getByText(/c-ares — MIT License/)).toBeOnTheScreen();
   expect(screen.getByText(/Permission is hereby granted/)).toBeOnTheScreen();

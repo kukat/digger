@@ -20,6 +20,7 @@ npm run typecheck
 npm run lint
 npm test
 npm run test:native # requires Homebrew c-ares
+npm run verify:release
 (cd android && ./gradlew connectedDebugAndroidTest) # requires a device/emulator
 ```
 
@@ -31,7 +32,7 @@ The iOS build uses the pinned `c-ares.podspec`. iOS may ask for local-network ac
 
 The Android CMake build downloads the checksum-pinned c-ares release and packages the native module for every configured release ABI. At startup, Android supplies c-ares with `ConnectivityManager`, so each system Query uses the current network's resolver configuration.
 
-Every Query gets a fresh c-ares channel, preventing later Queries from reusing stale resolver state after a network transition. Deterministic coverage, binary-size measurements, build requirements, and the physical-device verification matrix are recorded in [`docs/native-dns-spike.md`](docs/native-dns-spike.md).
+Every Query gets a fresh c-ares channel, preventing later Queries from reusing stale resolver state after a network transition. Deterministic coverage, binary-size measurements, build requirements, and the physical-device verification matrix are recorded in [`docs/native-dns-spike.md`](docs/native-dns-spike.md). Signed release commands, packaging checks, and the remaining human release gate are documented in [`docs/release-readiness.md`](docs/release-readiness.md).
 
 ## App workflow seam
 

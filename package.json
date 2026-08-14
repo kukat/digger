@@ -1,6 +1,6 @@
 {
   "name": "Digger",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "private": true,
   "scripts": {
     "android": "react-native run-android",
@@ -9,7 +9,10 @@
     "start": "react-native start",
     "test": "jest",
     "test:native": "./scripts/test-native-dns.sh",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "verify:release": "./scripts/verify-release-readiness.sh",
+    "release:android": "./scripts/release-android.sh",
+    "release:ios": "./scripts/release-ios.sh"
   },
   "codegenConfig": {
     "name": "DiggerSpecs",
