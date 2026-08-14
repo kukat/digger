@@ -6,7 +6,8 @@ import {
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useMemo } from 'react';
-import { StyleSheet, Text, useColorScheme } from 'react-native';
+import { StyleSheet, useColorScheme } from 'react-native';
+import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import type { RecentQueries } from '../history/RecentQueries';
 import type { NativeDns } from '../native/NativeDns';
@@ -24,24 +25,18 @@ import type { QueryStackParamList, TabParamList } from './types';
 const QueryStack = createNativeStackNavigator<QueryStackParamList>();
 const Tabs = createBottomTabNavigator<TabParamList>();
 
-const staticStyles = StyleSheet.create({
-  tabIcon: { fontSize: 21 },
-});
+type TabIconProps = { color: string; size: number };
 
-function TabIcon({ symbol, color }: { symbol: string; color: string }) {
-  return <Text style={[staticStyles.tabIcon, { color }]}>{symbol}</Text>;
+function QueryTabIcon({ color, size }: TabIconProps) {
+  return <Ionicons color={color} name="search-outline" size={size} />;
 }
 
-function QueryTabIcon({ color }: { color: string }) {
-  return <TabIcon color={color} symbol="⌕" />;
+function HistoryTabIcon({ color, size }: TabIconProps) {
+  return <Ionicons color={color} name="time-outline" size={size} />;
 }
 
-function HistoryTabIcon({ color }: { color: string }) {
-  return <TabIcon color={color} symbol="◴" />;
-}
-
-function SettingsTabIcon({ color }: { color: string }) {
-  return <TabIcon color={color} symbol="⚙" />;
+function SettingsTabIcon({ color, size }: TabIconProps) {
+  return <Ionicons color={color} name="settings-outline" size={size} />;
 }
 
 function QueryNavigator({
