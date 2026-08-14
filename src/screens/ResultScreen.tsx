@@ -1,5 +1,5 @@
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import React, { useMemo, useState } from 'react';
+import React, { useLayoutEffect, useMemo, useState } from 'react';
 import {
   Platform,
   Pressable,
@@ -115,44 +115,74 @@ export function ResultScreen({ navigation, route, resultActions }: Props) {
       : formatDigResult(textInput);
   const selectedViewName = view === 'structured' ? 'Structured' : 'dig-style';
 
+  useLayoutEffect(() => {
+    if (Platform.OS !== 'ios') {
+      return;
+    }
+
+    navigation.setOptions({
+      unstable_headerRightItems: () => [
+        {
+          accessibilityLabel: `Copy ${selectedViewName} Result`,
+          icon: { name: 'doc.on.doc', type: 'sfSymbol' },
+          label: 'Copy',
+          onPress: () => resultActions.copy(selectedText),
+          type: 'button',
+        },
+        {
+          accessibilityLabel: `Share ${selectedViewName} Result`,
+          icon: { name: 'square.and.arrow.up', type: 'sfSymbol' },
+          label: 'Share',
+          onPress: () => {
+            resultActions.share(selectedText).catch(() => undefined);
+          },
+          type: 'button',
+        },
+      ],
+    });
+  }, [navigation, resultActions, selectedText, selectedViewName]);
+
   return (
     <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={styles.screen}
       keyboardShouldPersistTaps="handled"
     >
-      <View style={styles.toolbar}>
-        <Pressable
-          accessibilityHint="Returns to the Query form and discards this Result."
-          accessibilityLabel="Back to Query"
-          accessibilityRole="button"
-          onPress={navigation.goBack}
-          style={styles.backButton}
-        >
-          <Text style={styles.backButtonText}>‹ Query</Text>
-        </Pressable>
-        <View style={styles.actions}>
+      {Platform.OS !== 'ios' && (
+        <View style={styles.toolbar}>
           <Pressable
-            accessibilityHint={`Copies the ${selectedViewName} representation to the clipboard.`}
-            accessibilityLabel={`Copy ${selectedViewName} Result`}
+            accessibilityHint="Returns to the Query form and discards this Result."
+            accessibilityLabel="Back to Query"
             accessibilityRole="button"
-            onPress={() => resultActions.copy(selectedText)}
-            style={styles.actionButton}
+            onPress={navigation.goBack}
+            style={styles.backButton}
           >
-            <Text style={styles.actionText}>Copy</Text>
+            <Text style={styles.backButtonText}>‹ Query</Text>
           </Pressable>
-          <Pressable
-            accessibilityHint={`Opens the system share sheet with the ${selectedViewName} representation.`}
-            accessibilityLabel={`Share ${selectedViewName} Result`}
-            accessibilityRole="button"
-            onPress={() => {
-              resultActions.share(selectedText).catch(() => undefined);
-            }}
-            style={styles.actionButton}
-          >
-            <Text style={styles.actionText}>Share</Text>
-          </Pressable>
+          <View style={styles.actions}>
+            <Pressable
+              accessibilityHint={`Copies the ${selectedViewName} representation to the clipboard.`}
+              accessibilityLabel={`Copy ${selectedViewName} Result`}
+              accessibilityRole="button"
+              onPress={() => resultActions.copy(selectedText)}
+              style={styles.actionButton}
+            >
+              <Text style={styles.actionText}>Copy</Text>
+            </Pressable>
+            <Pressable
+              accessibilityHint={`Opens the system share sheet with the ${selectedViewName} representation.`}
+              accessibilityLabel={`Share ${selectedViewName} Result`}
+              accessibilityRole="button"
+              onPress={() => {
+                resultActions.share(selectedText).catch(() => undefined);
+              }}
+              style={styles.actionButton}
+            >
+              <Text style={styles.actionText}>Share</Text>
+            </Pressable>
+          </View>
         </View>
-      </View>
+      )}
       <View
         accessible
         accessibilityLabel={`Query ${name}, ${type}. ${result.transport.toUpperCase()} via ${server}.`}

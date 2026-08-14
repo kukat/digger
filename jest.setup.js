@@ -1,5 +1,12 @@
 /* global jest */
 
+const { Platform } = require('react-native');
+
+Object.defineProperty(Platform, 'OS', {
+  configurable: true,
+  get: () => 'android',
+});
+
 jest.mock(
   'react-native-safe-area-context',
   () => require('react-native-safe-area-context/jest/mock').default,

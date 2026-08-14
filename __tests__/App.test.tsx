@@ -40,12 +40,14 @@ test('runs an injected A Query and shows loading before its Result', async () =>
 
   render(<App nativeDns={nativeDns} />);
 
-  expect(screen.getByRole('button', { name: /Query, tab/ })).toBeOnTheScreen();
   expect(
-    screen.getByRole('button', { name: /History, tab/ }),
+    screen.getByRole('button', { name: /^Query(?:, tab)?$/ }),
   ).toBeOnTheScreen();
   expect(
-    screen.getByRole('button', { name: /Settings, tab/ }),
+    screen.getByRole('button', { name: /^History(?:, tab)?$/ }),
+  ).toBeOnTheScreen();
+  expect(
+    screen.getByRole('button', { name: /^Settings(?:, tab)?$/ }),
   ).toBeOnTheScreen();
   expect(
     screen.queryByRole('button', { name: /Result, tab/ }),
@@ -57,7 +59,9 @@ test('runs an injected A Query and shows loading before its Result', async () =>
   );
   fireEvent.press(screen.getByRole('button', { name: 'Run Query' }));
 
-  expect(screen.getByText('Looking up example.com…')).toBeOnTheScreen();
+  expect(
+    screen.getByRole('progressbar', { name: 'Looking up example.com' }),
+  ).toBeOnTheScreen();
   expect(nativeDns.query).toHaveBeenCalledWith(
     'query-1',
     expect.objectContaining({

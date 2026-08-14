@@ -58,7 +58,7 @@ test('records only a normalized name and type when valid native execution begins
   expect(
     await screen.findByText('The resolver did not respond.'),
   ).toBeOnTheScreen();
-  fireEvent.press(screen.getByRole('button', { name: /History, tab/ }));
+  fireEvent.press(screen.getByRole('button', { name: /^History(?:, tab)?$/ }));
   expect(await screen.findByText('example.com')).toBeOnTheScreen();
 
   await waitFor(() =>
@@ -83,7 +83,7 @@ test('removes the oldest Query when a new execution exceeds capacity', async () 
   );
   fireEvent.press(screen.getByRole('button', { name: 'Run Query' }));
   await screen.findByText('NOERROR');
-  fireEvent.press(screen.getByRole('button', { name: /History, tab/ }));
+  fireEvent.press(screen.getByRole('button', { name: /^History(?:, tab)?$/ }));
 
   await waitFor(() => expect(storage.save).toHaveBeenCalled());
   expect(await screen.findByLabelText('Use new.example A')).toBeOnTheScreen();
@@ -111,7 +111,7 @@ test('deduplicates a rerun and moves it to the most recent position', async () =
   );
   fireEvent.press(screen.getByRole('button', { name: 'Run Query' }));
   await screen.findByText('NOERROR');
-  fireEvent.press(screen.getByRole('button', { name: /History, tab/ }));
+  fireEvent.press(screen.getByRole('button', { name: /^History(?:, tab)?$/ }));
 
   await waitFor(() => expect(storage.save).toHaveBeenCalled());
   expect(screen.getAllByRole('button', { name: /Use .* A/ })).toHaveLength(2);
@@ -132,7 +132,7 @@ test('refills only name and record type without running or replacing advanced se
     '192.0.2.53',
   );
   fireEvent.press(screen.getByRole('radio', { name: 'TCP only' }));
-  fireEvent.press(screen.getByRole('button', { name: /History, tab/ }));
+  fireEvent.press(screen.getByRole('button', { name: /^History(?:, tab)?$/ }));
   fireEvent.press(await screen.findByLabelText('Use recent.example AAAA'));
 
   expect(await screen.findByDisplayValue('recent.example')).toBeOnTheScreen();
@@ -159,7 +159,7 @@ test('deletes one Recent Query', async () => {
   render(
     <App nativeDns={successfulNativeDns()} recentQueryStorage={storage} />,
   );
-  fireEvent.press(screen.getByRole('button', { name: /History, tab/ }));
+  fireEvent.press(screen.getByRole('button', { name: /^History(?:, tab)?$/ }));
   fireEvent.press(await screen.findByLabelText('Delete remove.example TXT'));
 
   await waitFor(() =>
@@ -184,7 +184,7 @@ test('clears Recent Queries after confirmation and displays privacy and About in
       settingsConfirmation={confirmation}
     />,
   );
-  fireEvent.press(screen.getByRole('button', { name: /Settings, tab/ }));
+  fireEvent.press(screen.getByRole('button', { name: /^Settings(?:, tab)?$/ }));
 
   expect(
     await screen.findByText(/Digger does not upload Query data/),
@@ -199,7 +199,7 @@ test('clears Recent Queries after confirmation and displays privacy and About in
     expect(confirmation.confirmClearHistory).toHaveBeenCalled(),
   );
   await waitFor(() => expect(storage.save).toHaveBeenLastCalledWith([]));
-  fireEvent.press(screen.getByRole('button', { name: /History, tab/ }));
+  fireEvent.press(screen.getByRole('button', { name: /^History(?:, tab)?$/ }));
   expect(await screen.findByText('No Recent Queries yet.')).toBeOnTheScreen();
 });
 
@@ -221,7 +221,7 @@ test('relaunch restores Recent Queries but never a Result', async () => {
   render(
     <App nativeDns={successfulNativeDns()} recentQueryStorage={storage} />,
   );
-  fireEvent.press(screen.getByRole('button', { name: /History, tab/ }));
+  fireEvent.press(screen.getByRole('button', { name: /^History(?:, tab)?$/ }));
 
   expect(
     await screen.findByLabelText('Use persisted.example A'),

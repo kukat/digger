@@ -56,6 +56,7 @@ export function SettingsScreen({
 
   return (
     <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[
         styles.screen,
         { paddingBottom: insets.bottom + 20 },

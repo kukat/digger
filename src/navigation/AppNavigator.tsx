@@ -1,12 +1,16 @@
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import {
+  createNativeBottomTabNavigator,
+  type NativeBottomTabIcon,
+} from '@react-navigation/bottom-tabs/unstable';
+import {
   DarkTheme,
   DefaultTheme,
   NavigationContainer,
 } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import React, { useMemo } from 'react';
-import { StyleSheet, useColorScheme } from 'react-native';
+import { Platform, StyleSheet, useColorScheme } from 'react-native';
 import Ionicons from 'react-native-vector-icons/Ionicons';
 
 import type { RecentQueries } from '../history/RecentQueries';
@@ -30,7 +34,8 @@ import type {
 const QueryStack = createNativeStackNavigator<QueryStackParamList>();
 const HistoryStack = createNativeStackNavigator<HistoryStackParamList>();
 const SettingsStack = createNativeStackNavigator<SettingsStackParamList>();
-const Tabs = createBottomTabNavigator<TabParamList>();
+const NativeTabs = createNativeBottomTabNavigator<TabParamList>();
+const JavaScriptTabs = createBottomTabNavigator<TabParamList>();
 
 type TabIconProps = { color: string; size: number };
 
@@ -46,9 +51,19 @@ function SettingsTabIcon({ color, size }: TabIconProps) {
   return <Ionicons color={color} name="settings-outline" size={size} />;
 }
 
+function nativeTabIcon(
+  sfSymbol: Extract<NativeBottomTabIcon, { type: 'sfSymbol' }>['name'],
+): NativeBottomTabIcon {
+  return { type: 'sfSymbol', name: sfSymbol };
+}
+
 const nativeStackScreenOptions = {
   headerShadowVisible: false,
   headerTitleAlign: 'left' as const,
+  scrollEdgeEffects: {
+    bottom: 'automatic' as const,
+    top: 'automatic' as const,
+  },
 };
 
 function QueryNavigator({
@@ -62,7 +77,10 @@ function QueryNavigator({
 }) {
   return (
     <QueryStack.Navigator screenOptions={nativeStackScreenOptions}>
-      <QueryStack.Screen name="QueryForm" options={{ title: 'Query' }}>
+      <QueryStack.Screen
+        name="QueryForm"
+        options={{ headerLargeTitleEnabled: true, title: 'Query' }}
+      >
         {props => (
           <QueryScreen
             {...props}
@@ -87,7 +105,10 @@ function QueryNavigator({
 function HistoryNavigator({ recentQueries }: { recentQueries: RecentQueries }) {
   return (
     <HistoryStack.Navigator screenOptions={nativeStackScreenOptions}>
-      <HistoryStack.Screen name="HistoryHome" options={{ title: 'History' }}>
+      <HistoryStack.Screen
+        name="HistoryHome"
+        options={{ headerLargeTitleEnabled: true, title: 'History' }}
+      >
         {props => <HistoryScreen {...props} recentQueries={recentQueries} />}
       </HistoryStack.Screen>
     </HistoryStack.Navigator>
@@ -103,7 +124,10 @@ function SettingsNavigator({
 }) {
   return (
     <SettingsStack.Navigator screenOptions={nativeStackScreenOptions}>
-      <SettingsStack.Screen name="SettingsHome" options={{ title: 'Settings' }}>
+      <SettingsStack.Screen
+        name="SettingsHome"
+        options={{ headerLargeTitleEnabled: true, title: 'Settings' }}
+      >
         {() => (
           <SettingsScreen
             confirmation={confirmation}
@@ -128,7 +152,6 @@ export function AppNavigator({
 }) {
   const colors = useColors();
   const colorScheme = useColorScheme();
-  const styles = useMemo(() => createStyles(colors), [colors]);
   const navigationTheme = useMemo(() => {
     const baseTheme = colorScheme === 'dark' ? DarkTheme : DefaultTheme;
     return {
@@ -147,36 +170,133 @@ export function AppNavigator({
 
   return (
     <NavigationContainer theme={navigationTheme}>
-      <Tabs.Navigator
-        screenOptions={{
-          headerShown: false,
-          tabBarActiveTintColor: colors.accent,
-          tabBarInactiveTintColor: colors.muted,
-          tabBarStyle: styles.tabBar,
+      {Platform.OS === 'ios' ? (
+        <NativeTabNavigator
+          nativeDns={nativeDns}
+          recentQueries={recentQueries}
+          resultActions={resultActions}
+          settingsConfirmation={settingsConfirmation}
+        />
+      ) : (
+        <JavaScriptTabNavigator
+          nativeDns={nativeDns}
+          recentQueries={recentQueries}
+          resultActions={resultActions}
+          settingsConfirmation={settingsConfirmation}
+        />
+      )}
+    </NavigationContainer>
+  );
+}
+
+type TabNavigatorProps = {
+  nativeDns: NativeDns;
+  recentQueries: RecentQueries;
+  resultActions: ResultActions;
+  settingsConfirmation: SettingsConfirmation;
+};
+
+function NativeTabNavigator({
+  nativeDns,
+  recentQueries,
+  resultActions,
+  settingsConfirmation,
+}: TabNavigatorProps) {
+  const colors = useColors();
+
+  return (
+    <NativeTabs.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarMinimizeBehavior: 'none',
+        tabBarStyle: { backgroundColor: colors.surface },
+      }}
+    >
+      <NativeTabs.Screen
+        name="Query"
+        options={{
+          tabBarIcon: nativeTabIcon('magnifyingglass'),
         }}
       >
-        <Tabs.Screen name="Query" options={{ tabBarIcon: QueryTabIcon }}>
-          {() => (
-            <QueryNavigator
-              nativeDns={nativeDns}
-              recentQueries={recentQueries}
-              resultActions={resultActions}
-            />
-          )}
-        </Tabs.Screen>
-        <Tabs.Screen name="History" options={{ tabBarIcon: HistoryTabIcon }}>
-          {() => <HistoryNavigator recentQueries={recentQueries} />}
-        </Tabs.Screen>
-        <Tabs.Screen name="Settings" options={{ tabBarIcon: SettingsTabIcon }}>
-          {() => (
-            <SettingsNavigator
-              confirmation={settingsConfirmation}
-              recentQueries={recentQueries}
-            />
-          )}
-        </Tabs.Screen>
-      </Tabs.Navigator>
-    </NavigationContainer>
+        {() => (
+          <QueryNavigator
+            nativeDns={nativeDns}
+            recentQueries={recentQueries}
+            resultActions={resultActions}
+          />
+        )}
+      </NativeTabs.Screen>
+      <NativeTabs.Screen
+        name="History"
+        options={{ tabBarIcon: nativeTabIcon('clock') }}
+      >
+        {() => <HistoryNavigator recentQueries={recentQueries} />}
+      </NativeTabs.Screen>
+      <NativeTabs.Screen
+        name="Settings"
+        options={{ tabBarIcon: nativeTabIcon('gearshape') }}
+      >
+        {() => (
+          <SettingsNavigator
+            confirmation={settingsConfirmation}
+            recentQueries={recentQueries}
+          />
+        )}
+      </NativeTabs.Screen>
+    </NativeTabs.Navigator>
+  );
+}
+
+function JavaScriptTabNavigator({
+  nativeDns,
+  recentQueries,
+  resultActions,
+  settingsConfirmation,
+}: TabNavigatorProps) {
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
+  return (
+    <JavaScriptTabs.Navigator
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.accent,
+        tabBarInactiveTintColor: colors.muted,
+        tabBarStyle: styles.tabBar,
+      }}
+    >
+      <JavaScriptTabs.Screen
+        name="Query"
+        options={{ tabBarIcon: QueryTabIcon }}
+      >
+        {() => (
+          <QueryNavigator
+            nativeDns={nativeDns}
+            recentQueries={recentQueries}
+            resultActions={resultActions}
+          />
+        )}
+      </JavaScriptTabs.Screen>
+      <JavaScriptTabs.Screen
+        name="History"
+        options={{ tabBarIcon: HistoryTabIcon }}
+      >
+        {() => <HistoryNavigator recentQueries={recentQueries} />}
+      </JavaScriptTabs.Screen>
+      <JavaScriptTabs.Screen
+        name="Settings"
+        options={{ tabBarIcon: SettingsTabIcon }}
+      >
+        {() => (
+          <SettingsNavigator
+            confirmation={settingsConfirmation}
+            recentQueries={recentQueries}
+          />
+        )}
+      </JavaScriptTabs.Screen>
+    </JavaScriptTabs.Navigator>
   );
 }
 

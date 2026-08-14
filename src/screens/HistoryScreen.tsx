@@ -26,6 +26,7 @@ export function HistoryScreen({ navigation, recentQueries }: Props) {
 
   return (
     <ScrollView
+      contentInsetAdjustmentBehavior="automatic"
       contentContainerStyle={[
         styles.screen,
         { paddingBottom: insets.bottom + 20 },

@@ -2,6 +2,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
+  Platform,
   Pressable,
   ScrollView,
   StyleSheet,
@@ -152,6 +153,13 @@ export function QueryScreen({
   const insets = useSafeAreaInsets();
   const colors = useColors();
   const styles = useMemo(() => createStyles(colors), [colors]);
+  const contentStyle = useMemo(
+    () => [
+      styles.screen,
+      { paddingBottom: Platform.OS === 'ios' ? 20 : insets.bottom + 20 },
+    ],
+    [insets.bottom, styles],
+  );
 
   useEffect(() => {
     const recentQuery = route.params?.recentQuery;
@@ -311,10 +319,8 @@ export function QueryScreen({
 
   return (
     <ScrollView
-      contentContainerStyle={[
-        styles.screen,
-        { paddingBottom: insets.bottom + 20 },
-      ]}
+      contentInsetAdjustmentBehavior="automatic"
+      contentContainerStyle={contentStyle}
       keyboardShouldPersistTaps="handled"
     >
       <View style={styles.card}>
@@ -592,25 +598,13 @@ export function QueryScreen({
         </View>
       ) : null}
 
-      {isLoading ? (
-        <View
-          accessible
-          accessibilityLabel={`Looking up ${name.trim()}`}
-          accessibilityLiveRegion="polite"
-          accessibilityRole="progressbar"
-          style={styles.loading}
-        >
-          <ActivityIndicator color={colors.accent} />
-          <Text style={styles.loadingText}>Looking up {name.trim()}…</Text>
-        </View>
-      ) : null}
-
       <Pressable
         accessibilityHint={
           isLoading
             ? 'Cancels the active DNS Query.'
             : 'Runs the selected DNS Query.'
         }
+        accessibilityLabel={isLoading ? 'Cancel Query' : 'Run Query'}
         accessibilityRole="button"
         disabled={!isLoading && !name.trim()}
         onPress={isLoading ? cancelQuery : runQuery}
@@ -621,6 +615,17 @@ export function QueryScreen({
           pressed && styles.runButtonPressed,
         ]}
       >
+        {isLoading ? (
+          <View
+            accessible
+            accessibilityLabel={`Looking up ${name.trim()}`}
+            accessibilityLiveRegion="polite"
+            accessibilityRole="progressbar"
+            style={styles.loading}
+          >
+            <ActivityIndicator color={colors.danger} />
+          </View>
+        ) : null}
         <Text
           style={[styles.runButtonText, isLoading && styles.cancelButtonText]}
         >
@@ -635,7 +640,6 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
   StyleSheet.create({
     screen: {
       backgroundColor: colors.background,
-      flexGrow: 1,
       padding: 20,
     },
     card: {
@@ -752,14 +756,7 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
     switchThumbOn: { alignSelf: 'flex-end' },
     numericFields: { flexDirection: 'row', gap: 12, marginTop: 6 },
     numericField: { flex: 1 },
-    loading: {
-      alignItems: 'center',
-      flexDirection: 'row',
-      gap: 10,
-      justifyContent: 'center',
-      paddingVertical: 16,
-    },
-    loadingText: { color: colors.muted, fontSize: 14 },
+    loading: { alignItems: 'center', justifyContent: 'center' },
     errorCard: {
       backgroundColor: colors.dangerSoft,
       borderColor: colors.danger,
@@ -774,8 +771,10 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
       alignItems: 'center',
       backgroundColor: colors.accent,
       borderRadius: 14,
+      flexDirection: 'row',
+      gap: 10,
       justifyContent: 'center',
-      marginTop: 'auto',
+      marginTop: 16,
       minHeight: 48,
       paddingVertical: 12,
     },
