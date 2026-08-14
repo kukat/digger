@@ -19,7 +19,9 @@ function section(title: string, records: DnsRecord[]) {
 }
 
 function formatRecord(record: DnsRecord) {
-  return `${record.name}\t${record.ttl}\tIN\t${record.type}\t${record.data}`;
+  const data =
+    record.type === 'CNAME' ? record.data.replace(/^cname:\s*/, '') : record.data;
+  return `${record.name}\t${record.ttl}\tIN\t${record.type}\t${data}`;
 }
 
 export function formatDigResult({ name, type, result }: ResultTextInput) {

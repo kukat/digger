@@ -48,6 +48,26 @@ example.com.\t3600\tIN\tA\t93.184.216.34
 `);
   });
 
+  test('renders CNAME data without repeating its record type', () => {
+    expect(
+      formatDigResult({
+        name: 'a.cyao.win',
+        type: 'A',
+        result: {
+          ...successfulResult,
+          answer: [
+            {
+              name: 'a.cyao.win.',
+              type: 'CNAME',
+              ttl: 300,
+              data: 'cname: b.cyao.win.',
+            },
+          ],
+        },
+      }),
+    ).toContain('a.cyao.win.\t300\tIN\tCNAME\tb.cyao.win.');
+  });
+
   test('formats negative, empty-section, DNSSEC-observation, and unknown-record Results', () => {
     const cases: Array<{ name: string; result: DnsResult }> = [
       {
