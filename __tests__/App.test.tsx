@@ -3,6 +3,7 @@ import {act, fireEvent, render, screen} from '@testing-library/react-native';
 
 import App from '../App';
 import {NativeDnsError, type DnsResult} from '../src/native/NativeDns';
+import type {ResultActions} from '../src/results/actions';
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -319,6 +320,41 @@ test('shows Question, Answer, Authority, and Additional sections from one Result
   expect(screen.getByText('Authority')).toBeOnTheScreen();
   expect(screen.getByText('Additional')).toBeOnTheScreen();
   expect(screen.getByText('RDATA: deadbeef')).toBeOnTheScreen();
+});
+
+test('switches Result views and copies or shares the selected text without saving the Result', async () => {
+  const nativeDns = {
+    query: jest.fn(async () => answer),
+    cancel: jest.fn(),
+  };
+  const resultActions: ResultActions = {
+    copy: jest.fn(),
+    share: jest.fn(async () => undefined),
+  };
+
+  render(<App nativeDns={nativeDns} resultActions={resultActions} />);
+  fireEvent.changeText(screen.getByPlaceholderText('example.com'), 'example.com');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+  await screen.findByText('NOERROR');
+
+  fireEvent.press(screen.getByRole('button', {name: 'Copy Structured Result'}));
+  expect(resultActions.copy).toHaveBeenCalledWith(
+    expect.stringContaining('Digger Structured Result'),
+  );
+
+  fireEvent.press(screen.getByRole('button', {name: 'dig view'}));
+  expect(screen.getByText(/Digger dig-style/)).toBeOnTheScreen();
+  fireEvent.press(screen.getByRole('button', {name: 'Copy dig-style Result'}));
+  expect(resultActions.copy).toHaveBeenLastCalledWith(
+    expect.stringContaining(';; MSG SIZE rcvd: 56'),
+  );
+
+  await act(async () => {
+    fireEvent.press(screen.getByRole('button', {name: 'Share dig-style Result'}));
+  });
+  expect(resultActions.share).toHaveBeenCalledWith(
+    expect.stringContaining(';; ->>HEADER<<- opcode: QUERY, status: NOERROR'),
+  );
 });
 
 test('shows an injected native error without network access', async () => {

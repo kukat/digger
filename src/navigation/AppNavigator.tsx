@@ -5,6 +5,7 @@ import React from 'react';
 import {StyleSheet, Text} from 'react-native';
 
 import type {NativeDns} from '../native/NativeDns';
+import type {ResultActions} from '../results/actions';
 import {PlaceholderScreen} from '../screens/PlaceholderScreen';
 import {QueryScreen} from '../screens/QueryScreen';
 import {ResultScreen} from '../screens/ResultScreen';
@@ -30,22 +31,32 @@ function SettingsTabIcon({color}: {color: string}) {
   return <TabIcon color={color} symbol="⚙" />;
 }
 
-function QueryNavigator({nativeDns}: {nativeDns: NativeDns}) {
+function QueryNavigator({
+  nativeDns,
+  resultActions,
+}: {
+  nativeDns: NativeDns;
+  resultActions: ResultActions;
+}) {
   return (
     <QueryStack.Navigator>
       <QueryStack.Screen name="QueryForm" options={{headerShown: false}}>
         {props => <QueryScreen {...props} nativeDns={nativeDns} />}
       </QueryStack.Screen>
-      <QueryStack.Screen
-        component={ResultScreen}
-        name="Result"
-        options={{headerShown: false}}
-      />
+      <QueryStack.Screen name="Result" options={{headerShown: false}}>
+        {props => <ResultScreen {...props} resultActions={resultActions} />}
+      </QueryStack.Screen>
     </QueryStack.Navigator>
   );
 }
 
-export function AppNavigator({nativeDns}: {nativeDns: NativeDns}) {
+export function AppNavigator({
+  nativeDns,
+  resultActions,
+}: {
+  nativeDns: NativeDns;
+  resultActions: ResultActions;
+}) {
   return (
     <NavigationContainer>
       <Tabs.Navigator
@@ -58,7 +69,9 @@ export function AppNavigator({nativeDns}: {nativeDns: NativeDns}) {
         <Tabs.Screen
           name="Query"
           options={{tabBarIcon: QueryTabIcon}}>
-          {() => <QueryNavigator nativeDns={nativeDns} />}
+          {() => (
+            <QueryNavigator nativeDns={nativeDns} resultActions={resultActions} />
+          )}
         </Tabs.Screen>
         <Tabs.Screen
           name="History"

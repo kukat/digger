@@ -4,14 +4,18 @@
 
 **Blocked by:** 05 — Complete Query and structured Result functionality.
 
-**Status:** ready-for-agent
+**Status:** ready-for-human
 
-- [ ] A user can switch between Structured and `dig` views of the same current Result.
-- [ ] The `dig` view includes familiar header, status, flags, section, timing, server, transport, and message-size information when available.
-- [ ] Text is described as `dig`-style and is not represented as byte-for-byte BIND `dig` output.
-- [ ] The formatter never parses command output or rendered Structured content; both views are projections of one Result.
-- [ ] An app lifecycle cancellation identifier is never presented as a DNS transaction ID.
-- [ ] Copy produces human-readable Structured text or the complete generated `dig` text according to the selected view.
-- [ ] Share sends the same selected representation through the platform share sheet.
-- [ ] No copy/share action creates a saved Result, JSON export, raw-packet export, or output file.
-- [ ] Golden or snapshot tests cover representative successful, negative, empty-section, DNSSEC-observation, and unknown-record Results.
+- [x] A user can switch between Structured and `dig` views of the same current Result.
+- [x] The `dig` view includes familiar header, status, flags, section, timing, server, transport, and message-size information when available.
+- [x] Text is described as `dig`-style and is not represented as byte-for-byte BIND `dig` output.
+- [x] The formatter never parses command output or rendered Structured content; both views are projections of one Result.
+- [x] An app lifecycle cancellation identifier is never presented as a DNS transaction ID.
+- [x] Copy produces human-readable Structured text or the complete generated `dig` text according to the selected view.
+- [x] Share sends the same selected representation through the platform share sheet.
+- [x] No copy/share action creates a saved Result, JSON export, raw-packet export, or output file.
+- [x] Golden or snapshot tests cover representative successful, negative, empty-section, DNSSEC-observation, and unknown-record Results.
+
+## Comments
+
+Implemented `dig`-style Result formatting, selected-view copy/share actions, and app-workflow plus formatter snapshot coverage. Ready for human review.

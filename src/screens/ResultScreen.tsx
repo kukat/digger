@@ -1,13 +1,19 @@
 import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import React from 'react';
+import React, {useMemo, useState} from 'react';
 import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import type {QueryStackParamList} from '../navigation/types';
 import type {DnsQuestion, DnsRecord} from '../native/NativeDns';
+import type {ResultActions} from '../results/actions';
+import {formatDigResult, formatStructuredResult} from '../results/formatters';
 import {colors} from '../theme';
 
-type Props = NativeStackScreenProps<QueryStackParamList, 'Result'>;
+type Props = NativeStackScreenProps<QueryStackParamList, 'Result'> & {
+  resultActions: ResultActions;
+};
+
+type ResultView = 'structured' | 'dig';
 
 function QuestionSection({questions}: {questions: DnsQuestion[]}) {
   return (
@@ -56,23 +62,51 @@ function ResultSection({title, records}: {title: string; records: DnsRecord[]}) 
   );
 }
 
-export function ResultScreen({navigation, route}: Props) {
+export function ResultScreen({navigation, route, resultActions}: Props) {
   const {name, type, result} = route.params;
+  const [view, setView] = useState<ResultView>('structured');
   const insets = useSafeAreaInsets();
   const server = result.server
     ? `${result.server.address}:${result.server.port}`
     : 'System resolver';
+  const textInput = useMemo(() => ({name, type, result}), [name, result, type]);
+  const selectedText =
+    view === 'structured'
+      ? formatStructuredResult(textInput)
+      : formatDigResult(textInput);
+  const selectedViewName = view === 'structured' ? 'Structured' : 'dig-style';
 
   return (
     <ScrollView
-      contentContainerStyle={[styles.screen, {paddingTop: insets.top + 12}]}>
-      <Pressable
-        accessibilityLabel="Back to Query"
-        accessibilityRole="button"
-        onPress={navigation.goBack}
-        style={styles.backButton}>
-        <Text style={styles.backButtonText}>‹ Query</Text>
-      </Pressable>
+      contentContainerStyle={[styles.screen, {paddingTop: insets.top + 12}]}
+      keyboardShouldPersistTaps="handled">
+      <View style={styles.toolbar}>
+        <Pressable
+          accessibilityLabel="Back to Query"
+          accessibilityRole="button"
+          onPress={navigation.goBack}
+          style={styles.backButton}>
+          <Text style={styles.backButtonText}>‹ Query</Text>
+        </Pressable>
+        <View style={styles.actions}>
+          <Pressable
+            accessibilityLabel={`Copy ${selectedViewName} Result`}
+            accessibilityRole="button"
+            onPress={() => resultActions.copy(selectedText)}
+            style={styles.actionButton}>
+            <Text style={styles.actionText}>Copy</Text>
+          </Pressable>
+          <Pressable
+            accessibilityLabel={`Share ${selectedViewName} Result`}
+            accessibilityRole="button"
+            onPress={() => {
+              resultActions.share(selectedText).catch(() => undefined);
+            }}
+            style={styles.actionButton}>
+            <Text style={styles.actionText}>Share</Text>
+          </Pressable>
+        </View>
+      </View>
       <Text style={styles.eyebrow}>Current Result</Text>
       <Text style={styles.query}>{name} · {type}</Text>
       <Text style={styles.route}>{result.transport.toUpperCase()} · {server}</Text>
@@ -92,15 +126,49 @@ export function ResultScreen({navigation, route}: Props) {
         </View>
       </View>
 
-      <View style={styles.flags}>
-        <Text style={styles.flagsLabel}>Flags</Text>
-        <Text style={styles.flagsValue}>{result.flags.join('  ') || 'none'}</Text>
+      <View accessibilityRole="tablist" style={styles.segmentedControl}>
+        <Pressable
+          accessibilityLabel="Structured view"
+          accessibilityRole="button"
+          accessibilityState={{selected: view === 'structured'}}
+          onPress={() => setView('structured')}
+          style={[styles.segment, view === 'structured' && styles.segmentSelected]}>
+          <Text style={[styles.segmentText, view === 'structured' && styles.segmentTextSelected]}>
+            Structured
+          </Text>
+        </Pressable>
+        <Pressable
+          accessibilityLabel="dig view"
+          accessibilityRole="button"
+          accessibilityState={{selected: view === 'dig'}}
+          onPress={() => setView('dig')}
+          style={[styles.segment, view === 'dig' && styles.segmentSelected]}>
+          <Text style={[styles.segmentText, view === 'dig' && styles.segmentTextSelected]}>
+            dig
+          </Text>
+        </Pressable>
       </View>
 
-      <QuestionSection questions={result.question} />
-      <ResultSection title="Answer" records={result.answer} />
-      <ResultSection title="Authority" records={result.authority} />
-      <ResultSection title="Additional" records={result.additional} />
+      {view === 'structured' ? (
+        <>
+          <View style={styles.flags}>
+            <Text style={styles.flagsLabel}>Flags</Text>
+            <Text style={styles.flagsValue}>{result.flags.join('  ') || 'none'}</Text>
+          </View>
+          <QuestionSection questions={result.question} />
+          <ResultSection title="Answer" records={result.answer} />
+          <ResultSection title="Authority" records={result.authority} />
+          <ResultSection title="Additional" records={result.additional} />
+        </>
+      ) : (
+        <View style={styles.digCard}>
+          <Text style={styles.digTitle}>dig-style text</Text>
+          <Text style={styles.digText} selectable>{selectedText}</Text>
+          <Text style={styles.digHint}>
+            Generated from this Result; not byte-for-byte BIND dig output.
+          </Text>
+        </View>
+      )}
     </ScrollView>
   );
 }
@@ -112,11 +180,22 @@ const styles = StyleSheet.create({
     padding: 20,
     paddingBottom: 40,
   },
-  backButton: {
-    alignSelf: 'flex-start',
+  toolbar: {
+    alignItems: 'center',
+    flexDirection: 'row',
+    justifyContent: 'space-between',
     marginBottom: 18,
-    paddingVertical: 4,
   },
+  backButton: {paddingVertical: 4},
+  actions: {flexDirection: 'row', gap: 8},
+  actionButton: {
+    borderColor: colors.border,
+    borderRadius: 8,
+    borderWidth: 1,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+  },
+  actionText: {color: colors.accent, fontSize: 13, fontWeight: '700'},
   backButtonText: {
     color: colors.accent,
     fontSize: 16,
@@ -165,6 +244,28 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     marginTop: 4,
   },
+  segmentedControl: {
+    backgroundColor: colors.accentSoft,
+    borderColor: colors.border,
+    borderRadius: 10,
+    borderWidth: 1,
+    flexDirection: 'row',
+    marginTop: 18,
+    padding: 3,
+  },
+  segment: {
+    alignItems: 'center',
+    borderRadius: 7,
+    flex: 1,
+    paddingVertical: 8,
+  },
+  segmentSelected: {
+    backgroundColor: colors.surface,
+    borderColor: colors.border,
+    borderWidth: StyleSheet.hairlineWidth,
+  },
+  segmentText: {color: colors.muted, fontSize: 13, fontWeight: '700'},
+  segmentTextSelected: {color: colors.accent},
   flags: {
     flexDirection: 'row',
     marginVertical: 18,
@@ -246,4 +347,25 @@ const styles = StyleSheet.create({
     fontSize: 11,
     marginLeft: 8,
   },
+  digCard: {
+    backgroundColor: '#F8FAF8',
+    borderColor: colors.border,
+    borderRadius: 16,
+    borderWidth: StyleSheet.hairlineWidth,
+    marginTop: 16,
+    padding: 15,
+  },
+  digTitle: {
+    color: colors.ink,
+    fontSize: 15,
+    fontWeight: '700',
+    marginBottom: 10,
+  },
+  digText: {
+    color: colors.ink,
+    fontFamily: 'Courier',
+    fontSize: 12,
+    lineHeight: 18,
+  },
+  digHint: {color: colors.muted, fontSize: 11, lineHeight: 16, marginTop: 14},
 });

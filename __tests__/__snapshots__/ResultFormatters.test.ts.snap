@@ -1,0 +1,79 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Result text formatters formats negative, empty-section, DNSSEC-observation, and unknown-record Results: DNSSEC observation 1`] = `
+"; <<>> Digger dig-style <<>> example.com A
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR
+;; flags: qr rd ra ad; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;example.com.	IN	A
+
+;; ANSWER SECTION:
+example.com.	300	IN	RRSIG	A 13 2 300 20250101000000 20240101000000 12345 example.com. signature
+
+;; AUTHORITY SECTION:
+
+;; ADDITIONAL SECTION:
+
+;; Query time: 18 msec
+;; SERVER: 192.0.2.53#53 (UDP)
+;; MSG SIZE rcvd: 56"
+`;
+
+exports[`Result text formatters formats negative, empty-section, DNSSEC-observation, and unknown-record Results: empty sections 1`] = `
+"; <<>> Digger dig-style <<>> example.com A
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;example.com.	IN	A
+
+;; ANSWER SECTION:
+
+;; AUTHORITY SECTION:
+
+;; ADDITIONAL SECTION:
+
+;; Query time: 18 msec
+;; SERVER: 192.0.2.53#53 (UDP)
+;; MSG SIZE rcvd: 56"
+`;
+
+exports[`Result text formatters formats negative, empty-section, DNSSEC-observation, and unknown-record Results: negative 1`] = `
+"; <<>> Digger dig-style <<>> example.com A
+;; ->>HEADER<<- opcode: QUERY, status: NXDOMAIN
+;; flags: qr rd ra; QUERY: 1, ANSWER: 0, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;example.com.	IN	A
+
+;; ANSWER SECTION:
+
+;; AUTHORITY SECTION:
+
+;; ADDITIONAL SECTION:
+
+;; Query time: 18 msec
+;; SERVER: 192.0.2.53#53 (UDP)
+;; MSG SIZE rcvd: 56"
+`;
+
+exports[`Result text formatters formats negative, empty-section, DNSSEC-observation, and unknown-record Results: unknown record 1`] = `
+"; <<>> Digger dig-style <<>> example.com A
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR
+;; flags: qr rd ra; QUERY: 1, ANSWER: 1, AUTHORITY: 0, ADDITIONAL: 0
+
+;; QUESTION SECTION:
+;example.com.	IN	A
+
+;; ANSWER SECTION:
+example.com.	60	IN	TYPE65400	RDATA: deadbeef
+
+;; AUTHORITY SECTION:
+
+;; ADDITIONAL SECTION:
+
+;; Query time: 18 msec
+;; SERVER: 192.0.2.53#53 (UDP)
+;; MSG SIZE rcvd: 56"
+`;
