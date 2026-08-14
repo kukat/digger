@@ -125,6 +125,26 @@ example.com.\t3600\tIN\tA\t93.184.216.34
     }
   });
 
+  test('renders CNAME data without repeating its record type in Structured text', () => {
+    expect(
+      formatStructuredResult({
+        name: 'a.cyao.win',
+        type: 'A',
+        result: {
+          ...successfulResult,
+          answer: [
+            {
+              name: 'a.cyao.win.',
+              type: 'CNAME',
+              ttl: 300,
+              data: 'cname: b.cyao.win.',
+            },
+          ],
+        },
+      }),
+    ).toContain('Answer (1)\na.cyao.win. · CNAME · 300\nb.cyao.win.');
+  });
+
   test('generates human-readable Structured text from the same Result', () => {
     expect(
       formatStructuredResult({

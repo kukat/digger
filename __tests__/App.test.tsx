@@ -353,6 +353,33 @@ test('shows Question, Answer, Authority, and Additional sections from one Result
   expect(screen.getByText('RDATA: deadbeef')).toBeOnTheScreen();
 });
 
+test('renders CNAME targets without repeating the record type', async () => {
+  const nativeDns = {
+    query: jest.fn(async () => ({
+      ...answer,
+      answer: [
+        {
+          name: 'a.cyao.win.',
+          type: 'CNAME',
+          ttl: 300,
+          data: 'cname: b.cyao.win.',
+        },
+      ],
+    })),
+    cancel: jest.fn(),
+  };
+
+  render(<App nativeDns={nativeDns} />);
+  fireEvent.changeText(
+    screen.getByPlaceholderText('example.com'),
+    'a.cyao.win',
+  );
+  fireEvent.press(screen.getByRole('button', { name: 'Run Query' }));
+
+  expect(await screen.findByText('b.cyao.win.')).toBeOnTheScreen();
+  expect(screen.queryByText('cname: b.cyao.win.')).not.toBeOnTheScreen();
+});
+
 test('switches Result views and copies or shares the selected text without saving the Result', async () => {
   const nativeDns = {
     query: jest.fn(async () => answer),

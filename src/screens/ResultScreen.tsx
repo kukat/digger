@@ -13,7 +13,11 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { QueryStackParamList } from '../navigation/types';
 import type { DnsQuestion, DnsRecord } from '../native/NativeDns';
 import type { ResultActions } from '../results/actions';
-import { formatDigResult, formatStructuredResult } from '../results/formatters';
+import {
+  formatDigResult,
+  formatRecordData,
+  formatStructuredResult,
+} from '../results/formatters';
 import { useColors } from '../theme';
 
 type Props = NativeStackScreenProps<QueryStackParamList, 'Result'> & {
@@ -86,7 +90,7 @@ function ResultSection({
           </View>
           <View style={styles.recordBody}>
             <Text style={styles.recordName}>{record.name}</Text>
-            <Text style={styles.recordData}>{record.data}</Text>
+            <Text style={styles.recordData}>{formatRecordData(record)}</Text>
           </View>
           <Text style={styles.ttl}>{record.ttl}</Text>
         </View>

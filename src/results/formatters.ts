@@ -18,10 +18,16 @@ function section(title: string, records: DnsRecord[]) {
   return lines.join('\n');
 }
 
+export function formatRecordData(record: DnsRecord) {
+  return record.type === 'CNAME'
+    ? record.data.replace(/^cname:\s*/, '')
+    : record.data;
+}
+
 function formatRecord(record: DnsRecord) {
-  const data =
-    record.type === 'CNAME' ? record.data.replace(/^cname:\s*/, '') : record.data;
-  return `${record.name}\t${record.ttl}\tIN\t${record.type}\t${data}`;
+  return `${record.name}\t${record.ttl}\tIN\t${record.type}\t${formatRecordData(
+    record,
+  )}`;
 }
 
 export function formatDigResult({ name, type, result }: ResultTextInput) {
@@ -59,7 +65,7 @@ function structuredSection(title: string, records: DnsRecord[]) {
     `${title} (${records.length})`,
     ...records.flatMap(record => [
       `${record.name} · ${record.type} · ${record.ttl}`,
-      record.data,
+      formatRecordData(record),
     ]),
   ];
 }
