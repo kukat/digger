@@ -21,9 +21,23 @@ type DnsResolverSpec = {
   port?: number;
 };
 
+export type DnsRecordType =
+  | 'A'
+  | 'AAAA'
+  | 'CNAME'
+  | 'MX'
+  | 'TXT'
+  | 'NS'
+  | 'SOA'
+  | 'PTR'
+  | 'SRV'
+  | 'CAA'
+  | 'HTTPS'
+  | 'SVCB';
+
 type DnsQuerySpec = {
   name: string;
-  type: 'A' | 'AAAA';
+  type: DnsRecordType;
   resolver: DnsResolverSpec;
   transport: 'auto' | 'udp' | 'tcp';
   timeoutMs: number;

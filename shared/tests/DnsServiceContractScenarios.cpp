@@ -33,6 +33,9 @@ enum class ServerBehavior {
   Ignore,
   TruncateUdp,
   Malformed,
+  NxDomain,
+  ServFail,
+  Refused,
 };
 
 struct RequestObservation {
@@ -70,6 +73,87 @@ uint16_t queryType(const std::vector<uint8_t>& packet) {
   return static_cast<uint16_t>((packet[end - 4] << 8) | packet[end - 3]);
 }
 
+void appendU16(std::vector<uint8_t>& buffer, uint16_t value) {
+  buffer.push_back(static_cast<uint8_t>(value >> 8));
+  buffer.push_back(static_cast<uint8_t>(value));
+}
+
+void appendU32(std::vector<uint8_t>& buffer, uint32_t value) {
+  buffer.push_back(static_cast<uint8_t>(value >> 24));
+  buffer.push_back(static_cast<uint8_t>(value >> 16));
+  buffer.push_back(static_cast<uint8_t>(value >> 8));
+  buffer.push_back(static_cast<uint8_t>(value));
+}
+
+void appendName(std::vector<uint8_t>& buffer, const std::string& name) {
+  size_t start = 0;
+  while (start < name.size()) {
+    const auto end = name.find('.', start);
+    const auto length = (end == std::string::npos ? name.size() : end) - start;
+    if (length == 0) {
+      break;
+    }
+    buffer.push_back(static_cast<uint8_t>(length));
+    buffer.insert(buffer.end(), name.begin() + static_cast<long>(start),
+                  name.begin() + static_cast<long>(start + length));
+    start += length + 1;
+  }
+  buffer.push_back(0);
+}
+
+std::vector<uint8_t> rdataFor(uint16_t type, uint8_t answerByte) {
+  std::vector<uint8_t> data;
+  switch (type) {
+    case 1:
+      return {192, 0, 2, answerByte};
+    case 28: {
+      const std::array<uint8_t, 16> ipv6 = {
+          0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
+          0,    0,    0,    0,    0, 0, 0,
+          static_cast<uint8_t>(((answerByte / 10) << 4) | (answerByte % 10))};
+      return {ipv6.begin(), ipv6.end()};
+    }
+    case 2:
+    case 5:
+    case 12:
+      appendName(data, "target.example.");
+      return data;
+    case 15:
+      appendU16(data, 10);
+      appendName(data, "mail.example.");
+      return data;
+    case 16:
+      data.insert(data.end(), {5, 'h', 'e', 'l', 'l', 'o', 5, 'w', 'o', 'r', 'l', 'd'});
+      return data;
+    case 6:
+      appendName(data, "ns1.example.");
+      appendName(data, "hostmaster.example.");
+      appendU32(data, 20260814);
+      appendU32(data, 3600);
+      appendU32(data, 600);
+      appendU32(data, 1209600);
+      appendU32(data, 300);
+      return data;
+    case 33:
+      appendU16(data, 10);
+      appendU16(data, 20);
+      appendU16(data, 443);
+      appendName(data, "service.example.");
+      return data;
+    case 257:
+      data.insert(data.end(), {0, 5, 'i', 's', 's', 'u', 'e'});
+      data.insert(data.end(), {'l', 'e', 't', 's', 'e', 'n', 'c', 'r', 'y', 'p', 't', '.', 'o', 'r', 'g'});
+      return data;
+    case 64:
+    case 65:
+      appendU16(data, 1);
+      appendName(data, "service.example.");
+      return data;
+    default:
+      return {0xde, 0xad, 0xbe, 0xef};
+  }
+}
+
 std::vector<uint8_t> answerResponse(const std::vector<uint8_t>& request,
                                     uint8_t answerByte, bool authenticated) {
   const auto end = questionEnd(request.data(), request.size());
@@ -82,22 +166,32 @@ std::vector<uint8_t> answerResponse(const std::vector<uint8_t>& request,
   response[6] = 0;
   response[7] = 1;
   response[8] = 0;
-  response[9] = 0;
+  response[9] = 1;
   response[10] = 0;
-  response[11] = 0;
-  response.insert(response.end(),
-                  {0xc0, 0x0c, static_cast<uint8_t>(type >> 8),
-                   static_cast<uint8_t>(type), 0, 1, 0, 0, 0, 60});
-  if (type == 1) {
-    response.insert(response.end(), {0, 4, 192, 0, 2, answerByte});
-  } else {
-    const std::array<uint8_t, 16> ipv6 = {
-        0x20, 0x01, 0x0d, 0xb8, 0, 0, 0, 0,
-        0,    0,    0,    0,    0, 0, 0,
-        static_cast<uint8_t>(((answerByte / 10) << 4) | (answerByte % 10))};
-    response.insert(response.end(), {0, 16});
-    response.insert(response.end(), ipv6.begin(), ipv6.end());
-  }
+  response[11] = 1;
+  const auto appendRecord = [&response](uint16_t recordType,
+                                        const std::vector<uint8_t>& data) {
+    response.insert(response.end(),
+                    {0xc0, 0x0c, static_cast<uint8_t>(recordType >> 8),
+                     static_cast<uint8_t>(recordType), 0, 1, 0, 0, 0, 60});
+    appendU16(response, static_cast<uint16_t>(data.size()));
+    response.insert(response.end(), data.begin(), data.end());
+  };
+  appendRecord(type, rdataFor(type, answerByte));
+  appendRecord(2, rdataFor(2, answerByte));
+  appendRecord(65400, rdataFor(65400, answerByte));
+  return response;
+}
+
+std::vector<uint8_t> responseCode(const std::vector<uint8_t>& request,
+                                  uint8_t rcode) {
+  const auto end = questionEnd(request.data(), request.size());
+  std::vector<uint8_t> response(request.begin(), request.begin() + end);
+  response[2] = 0x81;
+  response[3] = static_cast<uint8_t>(0x80 | rcode);
+  std::fill(response.begin() + 6, response.begin() + 12, 0);
+  response[4] = 0;
+  response[5] = 1;
   return response;
 }
 
@@ -270,6 +364,15 @@ class ControlledDnsServer {
     }
     if (behavior_ == ServerBehavior::Malformed) {
       return malformedResponse(request);
+    }
+    if (behavior_ == ServerBehavior::NxDomain) {
+      return responseCode(request, 3);
+    }
+    if (behavior_ == ServerBehavior::ServFail) {
+      return responseCode(request, 2);
+    }
+    if (behavior_ == ServerBehavior::Refused) {
+      return responseCode(request, 5);
     }
     return answerResponse(request, answerByte_, authenticated_);
   }
@@ -444,6 +547,66 @@ void customResolverContract(int family, const std::string& type,
   require(result.wireBytes > 0, "wire size was not reported");
 }
 
+void completeResultContract() {
+  ControlledDnsServer server(AF_INET);
+  auto service = makeCaresDnsService();
+  QueryCompletion completion;
+  start(service, "all-sections", customQuery(server), completion);
+  const auto result = successful(completion);
+  require(result.question.size() == 1, "question section was omitted");
+  require(result.answer.size() == 1, "answer section was omitted");
+  require(result.authority.size() == 1, "authority section was omitted");
+  require(result.additional.size() == 1, "additional section was omitted");
+  require(result.additional[0].type == "TYPE65400", "unknown type was discarded");
+  require(result.additional[0].data == "RDATA: deadbeef",
+          "unknown RDATA was not rendered as hexadecimal");
+}
+
+void responseCodesContract() {
+  for (const auto& [behavior, expected] :
+       std::vector<std::pair<ServerBehavior, std::string>>{
+           {ServerBehavior::NxDomain, "NXDOMAIN"},
+           {ServerBehavior::ServFail, "SERVFAIL"},
+           {ServerBehavior::Refused, "REFUSED"}}) {
+    ControlledDnsServer server(AF_INET, behavior);
+    auto service = makeCaresDnsService();
+    QueryCompletion completion;
+    start(service, "rcode-" + expected, customQuery(server), completion);
+    const auto result = successful(completion);
+    require(result.rcode == expected, expected + " was not returned as a Result");
+    require(result.answer.empty() && result.authority.empty() &&
+                result.additional.empty(),
+            expected + " fabricated response records");
+  }
+}
+
+void supportedRecordTypesContract() {
+  for (const auto& [type, expectedData] :
+       std::vector<std::pair<std::string, std::string>>{
+           {"A", "192.0.2.44"},
+           {"AAAA", "2001:db8::44"},
+           {"CNAME", "cname: target.example."},
+           {"MX", "preference: 10 · exchange: mail.example."},
+           {"TXT", "\"hello\" · \"world\""},
+           {"NS", "host: target.example."},
+           {"SOA", "mname: ns1.example."},
+           {"PTR", "ptrdname: target.example."},
+           {"SRV", "priority: 10 · weight: 20 · port: 443"},
+           {"CAA", "critical: 0 · tag: issue · value: \"letsencrypt.org\""},
+           {"HTTPS", "priority: 1 · target: service.example."},
+           {"SVCB", "priority: 1 · target: service.example."}}) {
+    ControlledDnsServer server(AF_INET);
+    auto service = makeCaresDnsService();
+    QueryCompletion completion;
+    start(service, "supported-" + type, customQuery(server, type), completion);
+    const auto result = successful(completion);
+    require(result.answer.size() == 1, type + " answer was not parsed");
+    require(result.answer[0].type == type, type + " type was not preserved");
+    require(result.answer[0].data.find(expectedData) != std::string::npos,
+            type + " structured data was not preserved");
+  }
+}
+
 void transportContract() {
   auto service = makeCaresDnsService();
 
@@ -607,7 +770,7 @@ void failureClassificationContract() {
 
   Query invalid;
   invalid.name = "controlled.test";
-  invalid.type = "MX";
+  invalid.type = "BOGUS";
   invalid.transport = "udp";
   QueryCompletion invalidCompletion;
   start(service, "invalid-input", invalid, invalidCompletion);
@@ -672,6 +835,9 @@ std::string runContractScenarios() {
     scenario("IPv6 AAAA", [] {
       customResolverContract(AF_INET6, "AAAA", "2001:db8::44");
     });
+    scenario("complete Result", completeResultContract);
+    scenario("response codes", responseCodesContract);
+    scenario("supported record types", supportedRecordTypesContract);
     scenario("transport", transportContract);
     scenario("EDNS and DNSSEC", ednsAndDnssecContract);
     scenario("timeout, retry, and cancellation",

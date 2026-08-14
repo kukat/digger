@@ -2,10 +2,11 @@ import NativeDnsModule, {
   type DnsQuery,
   type DnsQuestion,
   type DnsRecord,
+  type DnsRecordType,
   type DnsResult,
 } from '../../specs/NativeDnsModule';
 
-export type DnsRecordType = 'A' | 'AAAA';
+export type {DnsRecordType};
 export type DnsFailureCode =
   | 'invalid_input'
   | 'timeout'

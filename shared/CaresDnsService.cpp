@@ -8,7 +8,9 @@
 #include <arpa/inet.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
+#include <cctype>
 #include <cmath>
 #include <condition_variable>
 #include <cstdint>
@@ -82,8 +84,74 @@ std::string className(ares_dns_class_t recordClass) {
   return name == nullptr ? std::to_string(static_cast<int>(recordClass)) : name;
 }
 
+std::string stringValue(const ares_dns_rr_t* record, ares_dns_rr_key_t key) {
+  const auto* value = ares_dns_rr_get_str(record, key);
+  return value == nullptr ? "" : canonicalName(value);
+}
+
+std::string hexadecimal(const unsigned char* value, size_t length) {
+  static constexpr char digits[] = "0123456789abcdef";
+  std::string result;
+  result.reserve(length * 2);
+  for (size_t index = 0; index < length; ++index) {
+    result.push_back(digits[value[index] >> 4]);
+    result.push_back(digits[value[index] & 0x0f]);
+  }
+  return result;
+}
+
+std::string textValue(const unsigned char* value, size_t length) {
+  std::string result{"\""};
+  for (size_t index = 0; index < length; ++index) {
+    const auto character = value[index];
+    if (character == '\\' || character == '"') {
+      result.push_back('\\');
+      result.push_back(static_cast<char>(character));
+    } else if (std::isprint(character) != 0) {
+      result.push_back(static_cast<char>(character));
+    } else {
+      result += "\\" + std::to_string(character);
+    }
+  }
+  return result + '"';
+}
+
+std::string binaryTextValue(const ares_dns_rr_t* record, ares_dns_rr_key_t key) {
+  size_t length = 0;
+  const auto* value = ares_dns_rr_get_bin(record, key, &length);
+  return value == nullptr ? "" : textValue(value, length);
+}
+
+std::string optionSummary(const ares_dns_rr_t* record, ares_dns_rr_key_t key) {
+  std::vector<std::string> options;
+  const auto count = ares_dns_rr_get_opt_cnt(record, key);
+  for (size_t index = 0; index < count; ++index) {
+    const unsigned char* value = nullptr;
+    size_t length = 0;
+    const auto option = ares_dns_rr_get_opt(record, key, index, &value, &length);
+    const auto* optionName = ares_dns_opt_get_name(key, option);
+    options.push_back(std::string(optionName == nullptr ? "key" : optionName) +
+                      "=" + (value == nullptr ? "" : hexadecimal(value, length)));
+  }
+  if (options.empty()) {
+    return "";
+  }
+  std::ostringstream result;
+  result << " · params: ";
+  for (size_t index = 0; index < options.size(); ++index) {
+    if (index != 0) {
+      result << ", ";
+    }
+    result << options[index];
+  }
+  return result.str();
+}
+
 std::string recordData(const ares_dns_rr_t* record) {
   char buffer[INET6_ADDRSTRLEN] = {};
+  const auto name = [](const char* label, const std::string& value) {
+    return std::string(label) + ": " + value;
+  };
   switch (ares_dns_rr_get_type(record)) {
     case ARES_REC_TYPE_A: {
       const auto* address = ares_dns_rr_get_addr(record, ARES_RR_A_ADDR);
@@ -99,9 +167,91 @@ std::string recordData(const ares_dns_rr_t* record) {
           ? buffer
           : "";
     }
+    case ARES_REC_TYPE_CNAME:
+      return name("cname", stringValue(record, ARES_RR_CNAME_CNAME));
+    case ARES_REC_TYPE_NS:
+      return name("host", stringValue(record, ARES_RR_NS_NSDNAME));
+    case ARES_REC_TYPE_PTR:
+      return name("ptrdname", stringValue(record, ARES_RR_PTR_DNAME));
+    case ARES_REC_TYPE_MX:
+      return "preference: " +
+             std::to_string(ares_dns_rr_get_u16(record, ARES_RR_MX_PREFERENCE)) +
+             " · exchange: " + stringValue(record, ARES_RR_MX_EXCHANGE);
+    case ARES_REC_TYPE_TXT: {
+      std::vector<std::string> texts;
+      const auto count = ares_dns_rr_get_abin_cnt(record, ARES_RR_TXT_DATA);
+      for (size_t index = 0; index < count; ++index) {
+        size_t length = 0;
+        const auto* value =
+            ares_dns_rr_get_abin(record, ARES_RR_TXT_DATA, index, &length);
+        if (value != nullptr) {
+          texts.push_back(textValue(value, length));
+        }
+      }
+      std::ostringstream result;
+      for (size_t index = 0; index < texts.size(); ++index) {
+        if (index != 0) {
+          result << " · ";
+        }
+        result << texts[index];
+      }
+      return result.str();
+    }
+    case ARES_REC_TYPE_SOA:
+      return "mname: " + stringValue(record, ARES_RR_SOA_MNAME) +
+             " · rname: " + stringValue(record, ARES_RR_SOA_RNAME) +
+             " · serial: " +
+             std::to_string(ares_dns_rr_get_u32(record, ARES_RR_SOA_SERIAL)) +
+             " · refresh: " +
+             std::to_string(ares_dns_rr_get_u32(record, ARES_RR_SOA_REFRESH)) +
+             " · retry: " +
+             std::to_string(ares_dns_rr_get_u32(record, ARES_RR_SOA_RETRY)) +
+             " · expire: " +
+             std::to_string(ares_dns_rr_get_u32(record, ARES_RR_SOA_EXPIRE)) +
+             " · minimum: " +
+             std::to_string(ares_dns_rr_get_u32(record, ARES_RR_SOA_MINIMUM));
+    case ARES_REC_TYPE_SRV:
+      return "priority: " +
+             std::to_string(ares_dns_rr_get_u16(record, ARES_RR_SRV_PRIORITY)) +
+             " · weight: " +
+             std::to_string(ares_dns_rr_get_u16(record, ARES_RR_SRV_WEIGHT)) +
+             " · port: " +
+             std::to_string(ares_dns_rr_get_u16(record, ARES_RR_SRV_PORT)) +
+             " · target: " + stringValue(record, ARES_RR_SRV_TARGET);
+    case ARES_REC_TYPE_CAA:
+      return "critical: " +
+             std::to_string(ares_dns_rr_get_u8(record, ARES_RR_CAA_CRITICAL)) +
+             " · tag: " + (ares_dns_rr_get_str(record, ARES_RR_CAA_TAG) == nullptr
+                                  ? ""
+                                  : ares_dns_rr_get_str(record, ARES_RR_CAA_TAG)) +
+             " · value: " + binaryTextValue(record, ARES_RR_CAA_VALUE);
+    case ARES_REC_TYPE_SVCB:
+      return "priority: " +
+             std::to_string(ares_dns_rr_get_u16(record, ARES_RR_SVCB_PRIORITY)) +
+             " · target: " + stringValue(record, ARES_RR_SVCB_TARGET) +
+             optionSummary(record, ARES_RR_SVCB_PARAMS);
+    case ARES_REC_TYPE_HTTPS:
+      return "priority: " +
+             std::to_string(ares_dns_rr_get_u16(record, ARES_RR_HTTPS_PRIORITY)) +
+             " · target: " + stringValue(record, ARES_RR_HTTPS_TARGET) +
+             optionSummary(record, ARES_RR_HTTPS_PARAMS);
+    case ARES_REC_TYPE_RAW_RR: {
+      size_t length = 0;
+      const auto* value =
+          ares_dns_rr_get_bin(record, ARES_RR_RAW_RR_DATA, &length);
+      return "RDATA: " + (value == nullptr ? "" : hexadecimal(value, length));
+    }
     default:
       return "";
   }
+}
+
+std::string recordType(const ares_dns_rr_t* record) {
+  if (ares_dns_rr_get_type(record) == ARES_REC_TYPE_RAW_RR) {
+    return "TYPE" +
+           std::to_string(ares_dns_rr_get_u16(record, ARES_RR_RAW_RR_TYPE));
+  }
+  return typeName(ares_dns_rr_get_type(record));
 }
 
 std::vector<Record> records(const ares_dns_record_t* response,
@@ -116,7 +266,7 @@ std::vector<Record> records(const ares_dns_record_t* response,
       continue;
     }
     result.push_back({canonicalName(ares_dns_rr_get_name(record)),
-                      typeName(ares_dns_rr_get_type(record)),
+                      recordType(record),
                       static_cast<double>(ares_dns_rr_get_ttl(record)),
                       recordData(record)});
   }
@@ -136,6 +286,62 @@ std::vector<std::string> responseFlags(const ares_dns_record_t* response) {
     }
   }
   return result;
+}
+
+std::optional<ares_dns_rec_type_t> supportedRecordType(const std::string& type) {
+  static const std::array<std::string, 12> supported = {
+      "A", "AAAA", "CNAME", "MX", "TXT", "NS", "SOA", "PTR",
+      "SRV", "CAA", "HTTPS", "SVCB"};
+  if (std::find(supported.begin(), supported.end(), type) == supported.end()) {
+    return std::nullopt;
+  }
+  ares_dns_rec_type_t result{};
+  return ares_dns_rec_type_fromstr(&result, type.c_str()) ? std::optional{result}
+                                                           : std::nullopt;
+}
+
+bool validDnsName(const std::string& name) {
+  if (name.empty() || name.size() > 253 || name.find_first_of("/:?# ") != std::string::npos) {
+    return false;
+  }
+  const auto end = name.back() == '.' ? name.size() - 1 : name.size();
+  if (end == 0) {
+    return true;
+  }
+  size_t labelStart = 0;
+  while (labelStart < end) {
+    const auto labelEnd = name.find('.', labelStart);
+    const auto length = (labelEnd == std::string::npos ? end : labelEnd) - labelStart;
+    if (length == 0 || length > 63 || name[labelStart] == '-' ||
+        name[labelStart + length - 1] == '-') {
+      return false;
+    }
+    for (size_t index = labelStart; index < labelStart + length; ++index) {
+      const auto character = static_cast<unsigned char>(name[index]);
+      if (!std::isalnum(character) && character != '-' && character != '_') {
+        return false;
+      }
+    }
+    labelStart += length + 1;
+  }
+  return true;
+}
+
+void normalizePtrAddress(Query& query) {
+  if (query.type != "PTR") {
+    return;
+  }
+  ares_addr address{};
+  address.family = AF_UNSPEC;
+  size_t length = 0;
+  if (ares_dns_pton(query.name.c_str(), &address, &length) == nullptr) {
+    return;
+  }
+  char* reverseName = ares_dns_addr_to_ptr(&address);
+  if (reverseName != nullptr) {
+    query.name = reverseName;
+    ares_free_string(reverseName);
+  }
 }
 
 std::string normalizeCustomServer(const std::string& address,
@@ -338,11 +544,12 @@ class CaresDnsService final
           ? ares_dns_record_create(&request, 0, ARES_FLAG_RD,
                                    ARES_OPCODE_QUERY, ARES_RCODE_NOERROR)
           : ARES_ECANCELLED;
-      const auto type = query.type == "AAAA" ? ARES_REC_TYPE_AAAA
-                                             : ARES_REC_TYPE_A;
-      if (status == ARES_SUCCESS) {
-        status = ares_dns_record_query_add(request, query.name.c_str(), type,
+      const auto type = supportedRecordType(query.type);
+      if (status == ARES_SUCCESS && type.has_value()) {
+        status = ares_dns_record_query_add(request, query.name.c_str(), *type,
                                            ARES_CLASS_IN);
+      } else if (status == ARES_SUCCESS) {
+        status = ARES_EBADQUERY;
       }
       if (status == ARES_SUCCESS && query.ednsUdpSize.has_value()) {
         ares_dns_rr_t* opt = nullptr;
@@ -515,14 +722,14 @@ class CaresDnsService final
       throw FailureException(
           {FailureCode::InvalidInput, "A Query identifier is required."});
     }
-    if (operation.query.name.empty()) {
+    normalizePtrAddress(operation.query);
+    if (!validDnsName(operation.query.name)) {
       throw FailureException(
-          {FailureCode::InvalidInput, "DNS name is required."});
+          {FailureCode::InvalidInput, "A valid DNS name is required."});
     }
-    if (operation.query.type != "A" && operation.query.type != "AAAA") {
+    if (!supportedRecordType(operation.query.type).has_value()) {
       throw FailureException(
-          {FailureCode::InvalidInput,
-           "Only A and AAAA Queries are supported."});
+          {FailureCode::InvalidInput, "The requested record type is not supported."});
     }
     if (operation.query.transport != "auto" &&
         operation.query.transport != "udp" &&

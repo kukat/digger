@@ -58,6 +58,19 @@ test('runs an injected A Query and shows loading before its Result', async () =>
   fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
 
   expect(screen.getByText('Looking up example.com…')).toBeOnTheScreen();
+  expect(nativeDns.query).toHaveBeenCalledWith(
+    'query-1',
+    expect.objectContaining({
+      name: 'example.com.',
+      type: 'A',
+      resolver: {mode: 'system'},
+      transport: 'auto',
+      ednsUdpSize: 1232,
+      dnssecOk: false,
+      timeoutMs: 3000,
+      retries: 1,
+    }),
+  );
 
   pending.resolve(answer);
 
@@ -237,6 +250,75 @@ test('returning from Result retains the Query form and discards the Result', asy
   expect(screen.queryByText('NOERROR')).not.toBeOnTheScreen();
   expect(screen.getByDisplayValue('example.com')).toBeOnTheScreen();
   expect(screen.queryByText('93.184.216.34')).not.toBeOnTheScreen();
+});
+
+test('accepts PTR addresses, offers every record type, and rejects URLs as DNS names', async () => {
+  const nativeDns = {
+    query: jest.fn(async () => answer),
+    cancel: jest.fn(),
+  };
+
+  render(<App nativeDns={nativeDns} />);
+  fireEvent.press(screen.getByRole('button', {name: 'More record types'}));
+  fireEvent.press(screen.getByRole('radio', {name: 'PTR'}));
+  fireEvent.changeText(screen.getByPlaceholderText('example.com'), '2001:db8::1');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+
+  await screen.findByText('NOERROR');
+  expect(nativeDns.query).toHaveBeenCalledWith(
+    'query-1',
+    expect.objectContaining({
+      name: '1.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.0.8.b.d.0.1.0.0.2.ip6.arpa.',
+      type: 'PTR',
+    }),
+  );
+
+  fireEvent.press(screen.getByRole('button', {name: /back/i}));
+  fireEvent.press(screen.getByRole('radio', {name: 'A'}));
+  fireEvent.changeText(screen.getByPlaceholderText('example.com'), 'https://example.com');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+  expect(screen.getByText('Enter a valid DNS name, not a URL.')).toBeOnTheScreen();
+  expect(nativeDns.query).toHaveBeenCalledTimes(1);
+});
+
+test('shows Question, Answer, Authority, and Additional sections from one Result', async () => {
+  const nativeDns = {
+    query: jest.fn(async () => ({
+      ...answer,
+      question: [{name: 'example.com.', type: 'CAA', recordClass: 'IN'}],
+      answer: [
+        {
+          name: 'example.com.',
+          type: 'CAA',
+          ttl: 3600,
+          data: 'critical: 0 · tag: issue · value: letsencrypt.org',
+        },
+      ],
+      authority: [
+        {
+          name: 'example.com.',
+          type: 'SOA',
+          ttl: 300,
+          data: 'mname: ns1.example.com. · rname: hostmaster.example.com.',
+        },
+      ],
+      additional: [
+        {name: 'ns1.example.com.', type: 'TYPE65400', ttl: 60, data: 'RDATA: deadbeef'},
+      ],
+    })),
+    cancel: jest.fn(),
+  };
+
+  render(<App nativeDns={nativeDns} />);
+  fireEvent.changeText(screen.getByPlaceholderText('example.com'), 'example.com');
+  fireEvent.press(screen.getByRole('button', {name: 'Run Query'}));
+
+  expect(await screen.findByText('Question')).toBeOnTheScreen();
+  expect(screen.getByText('CAA · IN')).toBeOnTheScreen();
+  expect(screen.getByText('Answer')).toBeOnTheScreen();
+  expect(screen.getByText('Authority')).toBeOnTheScreen();
+  expect(screen.getByText('Additional')).toBeOnTheScreen();
+  expect(screen.getByText('RDATA: deadbeef')).toBeOnTheScreen();
 });
 
 test('shows an injected native error without network access', async () => {

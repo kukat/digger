@@ -44,12 +44,83 @@ const transportOptions = [
   {value: 'udp' as const, label: 'Start with UDP'},
   {value: 'tcp' as const, label: 'TCP only'},
 ];
+const commonRecordTypes: DnsRecordType[] = ['A', 'AAAA', 'CNAME', 'MX', 'TXT'];
+const moreRecordTypes: DnsRecordType[] = [
+  'NS',
+  'SOA',
+  'PTR',
+  'SRV',
+  'CAA',
+  'HTTPS',
+  'SVCB',
+];
 
 function integerInRange(value: string, minimum: number, maximum: number) {
   const number = Number(value);
   return Number.isInteger(number) && number >= minimum && number <= maximum
     ? number
     : undefined;
+}
+
+function reverseMappingName(value: string): string | undefined {
+  const ipv4 = value.split('.');
+  if (
+    ipv4.length === 4 &&
+    ipv4.every(part => /^\d+$/.test(part) && Number(part) <= 255)
+  ) {
+    return `${ipv4.reverse().join('.')}.in-addr.arpa.`;
+  }
+
+  const halves = value.toLowerCase().split('::');
+  if (halves.length > 2) {
+    return undefined;
+  }
+  const left = halves[0] ? halves[0].split(':') : [];
+  const right = halves[1] ? halves[1].split(':') : [];
+  if (
+    left.length + right.length > 8 ||
+    (halves.length === 1 && left.length !== 8) ||
+    ![...left, ...right].every(part => /^[0-9a-f]{1,4}$/.test(part))
+  ) {
+    return undefined;
+  }
+  const groups = [
+    ...left,
+    ...Array(8 - left.length - right.length).fill('0'),
+    ...right,
+  ];
+  return `${groups
+    .map(group => group.padStart(4, '0'))
+    .join('')
+    .split('')
+    .reverse()
+    .join('.')}.ip6.arpa.`;
+}
+
+function normalizedDnsName(value: string): string | undefined {
+  const name = value.trim();
+  if (
+    !name ||
+    name.includes('://') ||
+    name.includes('/') ||
+    name.includes('?') ||
+    name.includes('#') ||
+    name.length > 253
+  ) {
+    return undefined;
+  }
+  const labels = name.replace(/\.$/, '').split('.');
+  if (
+    labels.some(
+      label =>
+        !label ||
+        label.length > 63 ||
+        !/^[a-zA-Z0-9_](?:[a-zA-Z0-9_-]{0,61}[a-zA-Z0-9_])?$/.test(label),
+    )
+  ) {
+    return undefined;
+  }
+  return `${labels.join('.')}.`;
 }
 
 export function QueryScreen({nativeDns, navigation}: Props) {
@@ -65,6 +136,7 @@ export function QueryScreen({nativeDns, navigation}: Props) {
   const [timeoutMs, setTimeoutMs] = useState('3000');
   const [retries, setRetries] = useState('1');
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [moreTypesOpen, setMoreTypesOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<QueryError>();
   const nextQueryId = useRef(0);
@@ -133,7 +205,18 @@ export function QueryScreen({nativeDns, navigation}: Props) {
     if (isLoading) {
       return;
     }
-    const normalizedName = name.trim();
+    const normalizedName =
+      type === 'PTR' ? reverseMappingName(name.trim()) : normalizedDnsName(name);
+    if (!normalizedName) {
+      setError({
+        code: 'invalid_input',
+        message:
+          type === 'PTR'
+            ? 'Enter a valid IPv4 or IPv6 address for a PTR Query.'
+            : 'Enter a valid DNS name, not a URL.',
+      });
+      return;
+    }
     const request = validateRequest(normalizedName);
     if (!request) {
       return;
@@ -150,7 +233,11 @@ export function QueryScreen({nativeDns, navigation}: Props) {
         return;
       }
       activeQueryId.current = undefined;
-      navigation.push('Result', {name: normalizedName, type, result});
+      navigation.push('Result', {
+        name: type === 'PTR' ? normalizedName : name.trim(),
+        type,
+        result,
+      });
     } catch (queryError) {
       if (activeQueryId.current !== queryId) {
         return;
@@ -222,7 +309,7 @@ export function QueryScreen({nativeDns, navigation}: Props) {
 
         <Text style={[styles.label, styles.recordLabel]}>RR type</Text>
         <View accessibilityRole="radiogroup" style={styles.types}>
-          {(['A', 'AAAA'] as const).map(recordType => {
+          {commonRecordTypes.map(recordType => {
             const selected = type === recordType;
             return (
               <Pressable
@@ -239,6 +326,36 @@ export function QueryScreen({nativeDns, navigation}: Props) {
             );
           })}
         </View>
+        <Pressable
+          accessibilityRole="button"
+          accessibilityState={{expanded: moreTypesOpen}}
+          disabled={isLoading}
+          onPress={() => setMoreTypesOpen(open => !open)}
+          style={styles.moreTypesButton}>
+          <Text style={styles.moreTypesText}>
+            {moreTypesOpen ? 'Fewer record types' : 'More record types'}
+          </Text>
+        </Pressable>
+        {moreTypesOpen ? (
+          <View accessibilityRole="radiogroup" style={styles.wrappedPills}>
+            {moreRecordTypes.map(recordType => {
+              const selected = type === recordType;
+              return (
+                <Pressable
+                  accessibilityRole="radio"
+                  accessibilityState={{checked: selected}}
+                  disabled={isLoading}
+                  key={recordType}
+                  onPress={() => setType(recordType)}
+                  style={[styles.pill, selected && styles.pillSelected]}>
+                  <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+                    {recordType}
+                  </Text>
+                </Pressable>
+              );
+            })}
+          </View>
+        ) : null}
       </View>
 
       <View style={styles.advanced}>
@@ -457,7 +574,9 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
   },
   recordLabel: {marginTop: 18},
-  types: {flexDirection: 'row', marginTop: 10},
+  types: {flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, rowGap: 8},
+  moreTypesButton: {alignSelf: 'flex-start', marginTop: 12, paddingVertical: 4},
+  moreTypesText: {color: colors.accent, fontSize: 13, fontWeight: '700'},
   wrappedPills: {flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, rowGap: 8},
   pill: {
     borderColor: colors.border,

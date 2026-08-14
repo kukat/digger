@@ -4,10 +4,34 @@ import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {useSafeAreaInsets} from 'react-native-safe-area-context';
 
 import type {QueryStackParamList} from '../navigation/types';
-import type {DnsRecord} from '../native/NativeDns';
+import type {DnsQuestion, DnsRecord} from '../native/NativeDns';
 import {colors} from '../theme';
 
 type Props = NativeStackScreenProps<QueryStackParamList, 'Result'>;
+
+function QuestionSection({questions}: {questions: DnsQuestion[]}) {
+  return (
+    <View style={styles.section}>
+      <View style={styles.sectionHeading}>
+        <Text style={styles.sectionTitle}>Question</Text>
+        <Text style={styles.count}>{questions.length}</Text>
+      </View>
+      {questions.map((question, index) => (
+        <View key={`${question.name}-${question.type}-${index}`} style={styles.record}>
+          <View style={styles.recordType}>
+            <Text style={styles.recordTypeText}>{question.type}</Text>
+          </View>
+          <View style={styles.recordBody}>
+            <Text style={styles.recordName}>{question.name}</Text>
+            <Text style={styles.recordData}>
+              {question.type} · {question.recordClass}
+            </Text>
+          </View>
+        </View>
+      ))}
+    </View>
+  );
+}
 
 function ResultSection({title, records}: {title: string; records: DnsRecord[]}) {
   return (
@@ -73,6 +97,7 @@ export function ResultScreen({navigation, route}: Props) {
         <Text style={styles.flagsValue}>{result.flags.join('  ') || 'none'}</Text>
       </View>
 
+      <QuestionSection questions={result.question} />
       <ResultSection title="Answer" records={result.answer} />
       <ResultSection title="Authority" records={result.authority} />
       <ResultSection title="Additional" records={result.additional} />

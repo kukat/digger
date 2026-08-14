@@ -1,10 +1,10 @@
-import type {DnsResult} from '../native/NativeDns';
+import type {DnsRecordType, DnsResult} from '../native/NativeDns';
 
 export type QueryStackParamList = {
   QueryForm: undefined;
   Result: {
     name: string;
-    type: 'A' | 'AAAA';
+    type: DnsRecordType;
     result: DnsResult;
   };
 };
