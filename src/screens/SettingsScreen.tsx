@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import {
   Alert,
   Pressable,
@@ -11,7 +11,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import appPackage from '../../package.json';
 import type { RecentQueries } from '../history/RecentQueries';
-import { colors } from '../theme';
+import { useColors } from '../theme';
 
 export interface SettingsConfirmation {
   confirmClearHistory(): Promise<boolean>;
@@ -45,6 +45,8 @@ export function SettingsScreen({
   confirmation: SettingsConfirmation;
 }) {
   const insets = useSafeAreaInsets();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   async function clearHistory() {
     if (await confirmation.confirmClearHistory()) {
@@ -71,6 +73,7 @@ export function SettingsScreen({
         </Text>
       </View>
       <Pressable
+        accessibilityHint="Removes all Recent Queries from this device after confirmation."
         accessibilityRole="button"
         onPress={() => {
           clearHistory().catch(() => undefined);
@@ -116,47 +119,55 @@ export function SettingsScreen({
   );
 }
 
-const styles = StyleSheet.create({
-  screen: { backgroundColor: colors.background, flexGrow: 1, padding: 20 },
-  title: {
-    color: colors.ink,
-    fontSize: 32,
-    fontWeight: '700',
-    marginBottom: 22,
-  },
-  sectionTitle: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    marginBottom: 8,
-    textTransform: 'uppercase',
-  },
-  card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 10,
-    padding: 16,
-  },
-  cardTitle: { color: colors.ink, fontSize: 16, fontWeight: '700' },
-  description: {
-    color: colors.muted,
-    fontSize: 14,
-    lineHeight: 20,
-    marginTop: 5,
-  },
-  notice: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 12 },
-  license: {color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 12},
-  clearButton: {
-    backgroundColor: colors.surface,
-    borderColor: colors.danger,
-    borderRadius: 14,
-    borderWidth: StyleSheet.hairlineWidth,
-    marginBottom: 24,
-    padding: 16,
-  },
-  clearTitle: { color: colors.danger, fontSize: 16, fontWeight: '700' },
-  clearDescription: { color: colors.muted, fontSize: 13, marginTop: 4 },
-});
+const createStyles = (colors: ReturnType<typeof useColors>) =>
+  StyleSheet.create({
+    screen: { backgroundColor: colors.background, flexGrow: 1, padding: 20 },
+    title: {
+      color: colors.ink,
+      fontSize: 32,
+      fontWeight: '700',
+      marginBottom: 22,
+    },
+    sectionTitle: {
+      color: colors.muted,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      marginBottom: 8,
+      textTransform: 'uppercase',
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      marginBottom: 10,
+      padding: 16,
+    },
+    cardTitle: { color: colors.ink, fontSize: 16, fontWeight: '700' },
+    description: {
+      color: colors.muted,
+      fontSize: 14,
+      lineHeight: 20,
+      marginTop: 5,
+    },
+    notice: { color: colors.ink, fontSize: 13, lineHeight: 19, marginTop: 12 },
+    license: {
+      color: colors.muted,
+      fontSize: 12,
+      lineHeight: 18,
+      marginTop: 12,
+    },
+    clearButton: {
+      backgroundColor: colors.surface,
+      borderColor: colors.danger,
+      borderRadius: 14,
+      borderWidth: StyleSheet.hairlineWidth,
+      justifyContent: 'center',
+      marginBottom: 24,
+      minHeight: 64,
+      padding: 16,
+    },
+    clearTitle: { color: colors.danger, fontSize: 16, fontWeight: '700' },
+    clearDescription: { color: colors.muted, fontSize: 13, marginTop: 4 },
+  });

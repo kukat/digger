@@ -1,5 +1,5 @@
-import type {NativeStackScreenProps} from '@react-navigation/native-stack';
-import React, {useEffect, useRef, useState} from 'react';
+import type { NativeStackScreenProps } from '@react-navigation/native-stack';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Pressable,
@@ -9,18 +9,18 @@ import {
   TextInput,
   View,
 } from 'react-native';
-import {useSafeAreaInsets} from 'react-native-safe-area-context';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import type {DnsResolver, DnsQuery} from '../../specs/NativeDnsModule';
-import type {RecentQueries} from '../history/RecentQueries';
-import type {QueryStackParamList} from '../navigation/types';
+import type { DnsResolver, DnsQuery } from '../../specs/NativeDnsModule';
+import type { RecentQueries } from '../history/RecentQueries';
+import type { QueryStackParamList } from '../navigation/types';
 import {
   NativeDnsError,
   type DnsFailureCode,
   type DnsRecordType,
   type NativeDns,
 } from '../native/NativeDns';
-import {colors} from '../theme';
+import { useColors } from '../theme';
 
 type Props = NativeStackScreenProps<QueryStackParamList, 'QueryForm'> & {
   nativeDns: NativeDns;
@@ -42,9 +42,9 @@ const errorTitles: Record<DnsFailureCode, string> = {
 };
 
 const transportOptions = [
-  {value: 'auto' as const, label: 'Automatic'},
-  {value: 'udp' as const, label: 'Start with UDP'},
-  {value: 'tcp' as const, label: 'TCP only'},
+  { value: 'auto' as const, label: 'Automatic' },
+  { value: 'udp' as const, label: 'Start with UDP' },
+  { value: 'tcp' as const, label: 'TCP only' },
 ];
 const commonRecordTypes: DnsRecordType[] = ['A', 'AAAA', 'CNAME', 'MX', 'TXT'];
 const moreRecordTypes: DnsRecordType[] = [
@@ -125,10 +125,16 @@ function normalizedDnsName(value: string): string | undefined {
   return `${labels.join('.').toLowerCase()}.`;
 }
 
-export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props) {
+export function QueryScreen({
+  nativeDns,
+  navigation,
+  recentQueries,
+  route,
+}: Props) {
   const [name, setName] = useState('');
   const [type, setType] = useState<DnsRecordType>('A');
-  const [resolverMode, setResolverMode] = useState<DnsResolver['mode']>('system');
+  const [resolverMode, setResolverMode] =
+    useState<DnsResolver['mode']>('system');
   const [resolverAddress, setResolverAddress] = useState('');
   const [resolverPort, setResolverPort] = useState('53');
   const [transport, setTransport] = useState<DnsQuery['transport']>('auto');
@@ -144,6 +150,8 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
   const nextQueryId = useRef(0);
   const activeQueryId = useRef<string | undefined>(undefined);
   const insets = useSafeAreaInsets();
+  const colors = useColors();
+  const styles = useMemo(() => createStyles(colors), [colors]);
 
   useEffect(() => {
     const recentQuery = route.params?.recentQuery;
@@ -152,16 +160,16 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
     }
     setName(recentQuery.name.replace(/\.$/, ''));
     setType(recentQuery.type);
-    navigation.setParams({recentQuery: undefined});
+    navigation.setParams({ recentQuery: undefined });
   }, [navigation, route.params?.recentQuery]);
 
   function validateRequest(normalizedName: string): DnsQuery | undefined {
     if (!normalizedName) {
-      setError({code: 'invalid_input', message: 'Enter a DNS name.'});
+      setError({ code: 'invalid_input', message: 'Enter a DNS name.' });
       return undefined;
     }
 
-    let resolver: DnsResolver = {mode: 'system'};
+    let resolver: DnsResolver = { mode: 'system' };
     if (resolverMode === 'custom') {
       const port = integerInRange(resolverPort, 1, 65535);
       if (!resolverAddress.trim() || port === undefined) {
@@ -171,7 +179,7 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
         });
         return undefined;
       }
-      resolver = {mode: 'custom', address: resolverAddress.trim(), port};
+      resolver = { mode: 'custom', address: resolverAddress.trim(), port };
     }
 
     const parsedTimeout = integerInRange(timeoutMs, 250, 120000);
@@ -218,7 +226,9 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
       return;
     }
     const normalizedName =
-      type === 'PTR' ? reverseMappingName(name.trim()) : normalizedDnsName(name);
+      type === 'PTR'
+        ? reverseMappingName(name.trim())
+        : normalizedDnsName(name);
     if (!normalizedName) {
       setError({
         code: 'invalid_input',
@@ -238,7 +248,9 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
     setIsLoading(true);
     const queryId = `query-${++nextQueryId.current}`;
     activeQueryId.current = queryId;
-    recentQueries.record({name: request.name, type: request.type}).catch(() => undefined);
+    recentQueries
+      .record({ name: request.name, type: request.type })
+      .catch(() => undefined);
 
     try {
       const result = await nativeDns.query(queryId, request);
@@ -257,7 +269,7 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
       }
       activeQueryId.current = undefined;
       if (queryError instanceof NativeDnsError) {
-        setError({code: queryError.code, message: queryError.message});
+        setError({ code: queryError.code, message: queryError.message });
       } else {
         setError({
           code: 'internal_native',
@@ -268,7 +280,10 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
         });
       }
     } finally {
-      if (activeQueryId.current === queryId || activeQueryId.current === undefined) {
+      if (
+        activeQueryId.current === queryId ||
+        activeQueryId.current === undefined
+      ) {
         setIsLoading(false);
       }
     }
@@ -298,15 +313,17 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
     <ScrollView
       contentContainerStyle={[
         styles.screen,
-        {paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20},
+        { paddingTop: insets.top + 20, paddingBottom: insets.bottom + 20 },
       ]}
-      keyboardShouldPersistTaps="handled">
+      keyboardShouldPersistTaps="handled"
+    >
       <Text style={styles.title}>Query</Text>
       <Text style={styles.subtitle}>Inspect a DNS response</Text>
 
       <View style={styles.card}>
         <Text style={styles.label}>Name</Text>
         <TextInput
+          accessibilityHint="Enter the DNS name to look up."
           accessibilityLabel="DNS name"
           autoCapitalize="none"
           autoCorrect={false}
@@ -327,12 +344,15 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
             return (
               <Pressable
                 accessibilityRole="radio"
-                accessibilityState={{checked: selected}}
+                accessibilityState={{ checked: selected }}
                 disabled={isLoading}
                 key={recordType}
                 onPress={() => setType(recordType)}
-                style={[styles.pill, selected && styles.pillSelected]}>
-                <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+                style={[styles.pill, selected && styles.pillSelected]}
+              >
+                <Text
+                  style={[styles.pillText, selected && styles.pillTextSelected]}
+                >
                   {recordType}
                 </Text>
               </Pressable>
@@ -340,11 +360,13 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
           })}
         </View>
         <Pressable
+          accessibilityHint="Shows less common DNS record types."
           accessibilityRole="button"
-          accessibilityState={{expanded: moreTypesOpen}}
+          accessibilityState={{ expanded: moreTypesOpen }}
           disabled={isLoading}
           onPress={() => setMoreTypesOpen(open => !open)}
-          style={styles.moreTypesButton}>
+          style={styles.moreTypesButton}
+        >
           <Text style={styles.moreTypesText}>
             {moreTypesOpen ? 'Fewer record types' : 'More record types'}
           </Text>
@@ -356,12 +378,18 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
               return (
                 <Pressable
                   accessibilityRole="radio"
-                  accessibilityState={{checked: selected}}
+                  accessibilityState={{ checked: selected }}
                   disabled={isLoading}
                   key={recordType}
                   onPress={() => setType(recordType)}
-                  style={[styles.pill, selected && styles.pillSelected]}>
-                  <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+                  style={[styles.pill, selected && styles.pillSelected]}
+                >
+                  <Text
+                    style={[
+                      styles.pillText,
+                      selected && styles.pillTextSelected,
+                    ]}
+                  >
                     {recordType}
                   </Text>
                 </Pressable>
@@ -373,10 +401,12 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
 
       <View style={styles.advanced}>
         <Pressable
+          accessibilityHint="Shows resolver, transport, EDNS, DNSSEC, timeout, and retry settings."
           accessibilityRole="button"
-          accessibilityState={{expanded: advancedOpen}}
+          accessibilityState={{ expanded: advancedOpen }}
           onPress={() => setAdvancedOpen(open => !open)}
-          style={styles.advancedHeader}>
+          style={styles.advancedHeader}
+        >
           <View style={styles.advancedHeaderText}>
             <Text style={styles.advancedTitle}>Advanced settings</Text>
             <Text style={styles.advancedSummary}>{advancedSummary}</Text>
@@ -390,16 +420,23 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
             <View accessibilityRole="radiogroup" style={styles.wrappedPills}>
               {(['system', 'custom'] as const).map(mode => {
                 const selected = resolverMode === mode;
-                const label = mode === 'system' ? 'System resolver' : 'Custom resolver';
+                const label =
+                  mode === 'system' ? 'System resolver' : 'Custom resolver';
                 return (
                   <Pressable
                     accessibilityRole="radio"
-                    accessibilityState={{checked: selected}}
+                    accessibilityState={{ checked: selected }}
                     disabled={isLoading}
                     key={mode}
                     onPress={() => setResolverMode(mode)}
-                    style={[styles.pill, selected && styles.pillSelected]}>
-                    <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+                    style={[styles.pill, selected && styles.pillSelected]}
+                  >
+                    <Text
+                      style={[
+                        styles.pillText,
+                        selected && styles.pillTextSelected,
+                      ]}
+                    >
                       {label}
                     </Text>
                   </Pressable>
@@ -438,12 +475,18 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
                 return (
                   <Pressable
                     accessibilityRole="radio"
-                    accessibilityState={{checked: selected}}
+                    accessibilityState={{ checked: selected }}
                     disabled={isLoading}
                     key={option.value}
                     onPress={() => setTransport(option.value)}
-                    style={[styles.pill, selected && styles.pillSelected]}>
-                    <Text style={[styles.pillText, selected && styles.pillTextSelected]}>
+                    style={[styles.pill, selected && styles.pillSelected]}
+                  >
+                    <Text
+                      style={[
+                        styles.pillText,
+                        selected && styles.pillTextSelected,
+                      ]}
+                    >
                       {option.label}
                     </Text>
                   </Pressable>
@@ -454,16 +497,25 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
             <View style={styles.switchRow}>
               <View style={styles.switchText}>
                 <Text style={styles.settingLabel}>EDNS</Text>
-                <Text style={styles.helpText}>Advertise a UDP response size</Text>
+                <Text style={styles.helpText}>
+                  Advertise a UDP response size
+                </Text>
               </View>
               <Pressable
+                accessibilityHint="Toggles the EDNS UDP response-size request."
                 accessibilityLabel="Enable EDNS"
                 accessibilityRole="switch"
-                accessibilityState={{checked: ednsEnabled}}
+                accessibilityState={{ checked: ednsEnabled }}
                 disabled={isLoading}
                 onPress={() => setEdnsEnabled(enabled => !enabled)}
-                style={[styles.switch, ednsEnabled && styles.switchOn]}>
-                <View style={[styles.switchThumb, ednsEnabled && styles.switchThumbOn]} />
+                style={[styles.switch, ednsEnabled && styles.switchOn]}
+              >
+                <View
+                  style={[
+                    styles.switchThumb,
+                    ednsEnabled && styles.switchThumbOn,
+                  ]}
+                />
               </Pressable>
             </View>
             {ednsEnabled ? (
@@ -481,16 +533,22 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
             <View style={styles.switchRow}>
               <View style={styles.switchText}>
                 <Text style={styles.settingLabel}>DNSSEC OK (DO)</Text>
-                <Text style={styles.helpText}>Requests DNSSEC data; Digger does not validate it</Text>
+                <Text style={styles.helpText}>
+                  Requests DNSSEC data; Digger does not validate it
+                </Text>
               </View>
               <Pressable
+                accessibilityHint="Toggles the DNSSEC OK bit; Digger does not validate DNSSEC."
                 accessibilityLabel="Request DNSSEC records"
                 accessibilityRole="switch"
-                accessibilityState={{checked: dnssecOk}}
+                accessibilityState={{ checked: dnssecOk }}
                 disabled={isLoading}
                 onPress={() => setDnssecOk(enabled => !enabled)}
-                style={[styles.switch, dnssecOk && styles.switchOn]}>
-                <View style={[styles.switchThumb, dnssecOk && styles.switchThumbOn]} />
+                style={[styles.switch, dnssecOk && styles.switchOn]}
+              >
+                <View
+                  style={[styles.switchThumb, dnssecOk && styles.switchThumbOn]}
+                />
               </Pressable>
             </View>
 
@@ -525,30 +583,50 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
       </View>
 
       {error ? (
-        <View accessible accessibilityRole="alert" style={styles.errorCard}>
+        <View
+          accessible
+          accessibilityLabel={`${errorTitles[error.code]}. ${error.message}`}
+          accessibilityLiveRegion="assertive"
+          accessibilityRole="alert"
+          style={styles.errorCard}
+        >
           <Text style={styles.errorTitle}>{errorTitles[error.code]}</Text>
           <Text style={styles.errorText}>{error.message}</Text>
         </View>
       ) : null}
 
       {isLoading ? (
-        <View style={styles.loading}>
+        <View
+          accessible
+          accessibilityLabel={`Looking up ${name.trim()}`}
+          accessibilityLiveRegion="polite"
+          accessibilityRole="progressbar"
+          style={styles.loading}
+        >
           <ActivityIndicator color={colors.accent} />
           <Text style={styles.loadingText}>Looking up {name.trim()}…</Text>
         </View>
       ) : null}
 
       <Pressable
+        accessibilityHint={
+          isLoading
+            ? 'Cancels the active DNS Query.'
+            : 'Runs the selected DNS Query.'
+        }
         accessibilityRole="button"
         disabled={!isLoading && !name.trim()}
         onPress={isLoading ? cancelQuery : runQuery}
-        style={({pressed}) => [
+        style={({ pressed }) => [
           styles.runButton,
           isLoading && styles.cancelButton,
           !isLoading && !name.trim() && styles.runButtonDisabled,
           pressed && styles.runButtonPressed,
-        ]}>
-        <Text style={[styles.runButtonText, isLoading && styles.cancelButtonText]}>
+        ]}
+      >
+        <Text
+          style={[styles.runButtonText, isLoading && styles.cancelButtonText]}
+        >
           {isLoading ? 'Cancel Query' : 'Run Query'}
         </Text>
       </Pressable>
@@ -556,115 +634,168 @@ export function QueryScreen({nativeDns, navigation, recentQueries, route}: Props
   );
 }
 
-const styles = StyleSheet.create({
-  screen: {
-    backgroundColor: colors.background,
-    flexGrow: 1,
-    padding: 20,
-  },
-  title: {color: colors.ink, fontSize: 32, fontWeight: '700'},
-  subtitle: {color: colors.muted, fontSize: 15, marginBottom: 22, marginTop: 3},
-  card: {
-    backgroundColor: colors.surface,
-    borderColor: colors.border,
-    borderRadius: 18,
-    borderWidth: StyleSheet.hairlineWidth,
-    padding: 18,
-  },
-  label: {
-    color: colors.muted,
-    fontSize: 12,
-    fontWeight: '700',
-    letterSpacing: 0.8,
-    textTransform: 'uppercase',
-  },
-  input: {
-    borderBottomColor: colors.border,
-    borderBottomWidth: 1,
-    color: colors.ink,
-    fontSize: 20,
-    paddingHorizontal: 0,
-    paddingVertical: 12,
-  },
-  recordLabel: {marginTop: 18},
-  types: {flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, rowGap: 8},
-  moreTypesButton: {alignSelf: 'flex-start', marginTop: 12, paddingVertical: 4},
-  moreTypesText: {color: colors.accent, fontSize: 13, fontWeight: '700'},
-  wrappedPills: {flexDirection: 'row', flexWrap: 'wrap', marginTop: 8, rowGap: 8},
-  pill: {
-    borderColor: colors.border,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginRight: 8,
-    paddingHorizontal: 14,
-    paddingVertical: 9,
-  },
-  pillSelected: {backgroundColor: colors.accentSoft, borderColor: colors.accent},
-  pillText: {color: colors.muted, fontSize: 14, fontWeight: '700'},
-  pillTextSelected: {color: colors.accent},
-  advanced: {
-    borderBottomColor: colors.border,
-    borderBottomWidth: StyleSheet.hairlineWidth,
-    paddingHorizontal: 4,
-    paddingVertical: 14,
-  },
-  advancedHeader: {alignItems: 'center', flexDirection: 'row'},
-  advancedHeaderText: {flex: 1},
-  advancedTitle: {color: colors.ink, fontSize: 15, fontWeight: '600'},
-  advancedSummary: {color: colors.muted, fontSize: 11, marginTop: 4},
-  chevron: {color: colors.accent, fontSize: 22, marginLeft: 12},
-  advancedBody: {paddingTop: 16},
-  settingLabel: {color: colors.ink, fontSize: 13, fontWeight: '600', marginTop: 10},
-  helpText: {color: colors.muted, fontSize: 11, marginTop: 2},
-  resolverFields: {flexDirection: 'row', gap: 12, marginTop: 8},
-  resolverAddress: {flex: 1},
-  resolverPort: {width: 70},
-  compactInput: {
-    borderColor: colors.border,
-    borderRadius: 9,
-    borderWidth: 1,
-    color: colors.ink,
-    fontSize: 14,
-    marginTop: 7,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-  },
-  switchRow: {alignItems: 'center', flexDirection: 'row', marginTop: 10},
-  switchText: {flex: 1, paddingRight: 12},
-  switch: {
-    backgroundColor: colors.border,
-    borderRadius: 14,
-    height: 28,
-    justifyContent: 'center',
-    padding: 3,
-    width: 48,
-  },
-  switchOn: {backgroundColor: colors.accent},
-  switchThumb: {backgroundColor: '#FFFFFF', borderRadius: 11, height: 22, width: 22},
-  switchThumbOn: {alignSelf: 'flex-end'},
-  numericFields: {flexDirection: 'row', gap: 12, marginTop: 6},
-  numericField: {flex: 1},
-  loading: {
-    alignItems: 'center',
-    flexDirection: 'row',
-    gap: 10,
-    justifyContent: 'center',
-    paddingVertical: 16,
-  },
-  loadingText: {color: colors.muted, fontSize: 14},
-  errorCard: {backgroundColor: '#F9E8E5', borderRadius: 12, marginTop: 16, padding: 14},
-  errorTitle: {color: colors.danger, fontSize: 14, fontWeight: '700'},
-  errorText: {color: colors.ink, marginTop: 3},
-  runButton: {
-    alignItems: 'center',
-    backgroundColor: colors.accent,
-    borderRadius: 14,
-    marginTop: 'auto',
-    paddingVertical: 16,
-  },
-  cancelButton: {backgroundColor: colors.surface, borderColor: colors.danger, borderWidth: 1},
-  cancelButtonText: {color: colors.danger},
-  runButtonDisabled: {opacity: 0.45},
-  runButtonPressed: {opacity: 0.8},
-  runButtonText: {color: '#FFFFFF', fontSize: 16, fontWeight: '700'},
-});
+const createStyles = (colors: ReturnType<typeof useColors>) =>
+  StyleSheet.create({
+    screen: {
+      backgroundColor: colors.background,
+      flexGrow: 1,
+      padding: 20,
+    },
+    title: { color: colors.ink, fontSize: 32, fontWeight: '700' },
+    subtitle: {
+      color: colors.muted,
+      fontSize: 15,
+      marginBottom: 22,
+      marginTop: 3,
+    },
+    card: {
+      backgroundColor: colors.surface,
+      borderColor: colors.border,
+      borderRadius: 18,
+      borderWidth: StyleSheet.hairlineWidth,
+      padding: 18,
+    },
+    label: {
+      color: colors.muted,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.8,
+      textTransform: 'uppercase',
+    },
+    input: {
+      borderBottomColor: colors.border,
+      borderBottomWidth: 1,
+      color: colors.ink,
+      fontSize: 20,
+      minHeight: 48,
+      paddingHorizontal: 0,
+      paddingVertical: 12,
+    },
+    recordLabel: { marginTop: 18 },
+    types: { flexDirection: 'row', flexWrap: 'wrap', marginTop: 10, rowGap: 8 },
+    moreTypesButton: {
+      alignItems: 'center',
+      alignSelf: 'flex-start',
+      justifyContent: 'center',
+      marginTop: 8,
+      minHeight: 44,
+      paddingHorizontal: 8,
+    },
+    moreTypesText: { color: colors.accent, fontSize: 13, fontWeight: '700' },
+    wrappedPills: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      marginTop: 8,
+      rowGap: 8,
+    },
+    pill: {
+      alignItems: 'center',
+      borderColor: colors.border,
+      borderRadius: 10,
+      borderWidth: 1,
+      justifyContent: 'center',
+      marginRight: 8,
+      minHeight: 44,
+      paddingHorizontal: 14,
+      paddingVertical: 9,
+    },
+    pillSelected: {
+      backgroundColor: colors.accentSoft,
+      borderColor: colors.accent,
+    },
+    pillText: { color: colors.muted, fontSize: 14, fontWeight: '700' },
+    pillTextSelected: { color: colors.accent },
+    advanced: {
+      borderBottomColor: colors.border,
+      borderBottomWidth: StyleSheet.hairlineWidth,
+      paddingHorizontal: 4,
+      paddingVertical: 14,
+    },
+    advancedHeader: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      minHeight: 48,
+    },
+    advancedHeaderText: { flex: 1 },
+    advancedTitle: { color: colors.ink, fontSize: 15, fontWeight: '600' },
+    advancedSummary: { color: colors.muted, fontSize: 11, marginTop: 4 },
+    chevron: { color: colors.accent, fontSize: 22, marginLeft: 12 },
+    advancedBody: { paddingTop: 16 },
+    settingLabel: {
+      color: colors.ink,
+      fontSize: 13,
+      fontWeight: '600',
+      marginTop: 10,
+    },
+    helpText: { color: colors.muted, fontSize: 11, marginTop: 2 },
+    resolverFields: { flexDirection: 'row', gap: 12, marginTop: 8 },
+    resolverAddress: { flex: 1 },
+    resolverPort: { width: 70 },
+    compactInput: {
+      borderColor: colors.border,
+      borderRadius: 9,
+      borderWidth: 1,
+      color: colors.ink,
+      fontSize: 14,
+      marginTop: 7,
+      minHeight: 44,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+    },
+    switchRow: { alignItems: 'center', flexDirection: 'row', marginTop: 10 },
+    switchText: { flex: 1, paddingRight: 12 },
+    switch: {
+      backgroundColor: colors.border,
+      borderRadius: 16,
+      height: 32,
+      justifyContent: 'center',
+      padding: 4,
+      width: 52,
+    },
+    switchOn: { backgroundColor: colors.accent },
+    switchThumb: {
+      backgroundColor: colors.surface,
+      borderRadius: 12,
+      height: 24,
+      width: 24,
+    },
+    switchThumbOn: { alignSelf: 'flex-end' },
+    numericFields: { flexDirection: 'row', gap: 12, marginTop: 6 },
+    numericField: { flex: 1 },
+    loading: {
+      alignItems: 'center',
+      flexDirection: 'row',
+      gap: 10,
+      justifyContent: 'center',
+      paddingVertical: 16,
+    },
+    loadingText: { color: colors.muted, fontSize: 14 },
+    errorCard: {
+      backgroundColor: colors.dangerSoft,
+      borderColor: colors.danger,
+      borderRadius: 12,
+      borderWidth: StyleSheet.hairlineWidth,
+      marginTop: 16,
+      padding: 14,
+    },
+    errorTitle: { color: colors.danger, fontSize: 14, fontWeight: '700' },
+    errorText: { color: colors.ink, marginTop: 3 },
+    runButton: {
+      alignItems: 'center',
+      backgroundColor: colors.accent,
+      borderRadius: 14,
+      justifyContent: 'center',
+      marginTop: 'auto',
+      minHeight: 48,
+      paddingVertical: 12,
+    },
+    cancelButton: {
+      backgroundColor: colors.surface,
+      borderColor: colors.danger,
+      borderWidth: 1,
+    },
+    cancelButtonText: { color: colors.danger },
+    runButtonDisabled: { opacity: 0.45 },
+    runButtonPressed: { opacity: 0.8 },
+    runButtonText: { color: colors.surface, fontSize: 16, fontWeight: '700' },
+  });
