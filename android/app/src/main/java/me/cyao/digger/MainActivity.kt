@@ -1,4 +1,4 @@
-package com.digger
+package me.cyao.digger
 
 import com.facebook.react.ReactActivity
 import com.facebook.react.ReactActivityDelegate

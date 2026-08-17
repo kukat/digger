@@ -55,7 +55,7 @@ std::shared_ptr<TurboModule> javaModuleProvider(
 }  // namespace facebook::react
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_digger_NativeDnsAndroid_initialize(JNIEnv*, jclass,
+Java_me_cyao_digger_NativeDnsAndroid_initialize(JNIEnv*, jclass,
                                              jobject connectivityManager) {
   const auto status = ares_library_init(ARES_LIB_INIT_ALL);
   if (status != ARES_SUCCESS) {
@@ -69,13 +69,13 @@ Java_com_digger_NativeDnsAndroid_initialize(JNIEnv*, jclass,
 }
 
 extern "C" JNIEXPORT jint JNICALL
-Java_com_digger_NativeDnsAndroid_isInitialized(JNIEnv*, jclass) {
+Java_me_cyao_digger_NativeDnsAndroid_isInitialized(JNIEnv*, jclass) {
   return ares_library_android_initialized();
 }
 
 #ifdef DIGGER_NATIVE_CONTRACT_TESTS
 extern "C" JNIEXPORT jstring JNICALL
-Java_com_digger_NativeDnsContractTestBridge_run(JNIEnv* environment, jclass) {
+Java_me_cyao_digger_NativeDnsContractTestBridge_run(JNIEnv* environment, jclass) {
   const auto failure = digger::dns::testing::runContractScenarios();
   return failure.empty() ? nullptr
                          : environment->NewStringUTF(failure.c_str());

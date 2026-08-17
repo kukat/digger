@@ -284,6 +284,7 @@
 					"$(SRCROOT)/../shared",
 				);
 				INFOPLIST_FILE = Digger/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Digger;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -295,7 +296,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.digger;
+				PRODUCT_BUNDLE_IDENTIFIER = me.cyao.digger;
 				PRODUCT_NAME = Digger;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -317,6 +318,7 @@
 					"$(SRCROOT)/../shared",
 				);
 				INFOPLIST_FILE = Digger/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = Digger;
 				IPHONEOS_DEPLOYMENT_TARGET = 15.1;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -328,7 +330,7 @@
 					"-ObjC",
 					"-lc++",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.digger;
+				PRODUCT_BUNDLE_IDENTIFIER = me.cyao.digger;
 				PRODUCT_NAME = Digger;
 				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator";
 				SWIFT_VERSION = 5.0;

@@ -1,4 +1,4 @@
-package com.digger
+package me.cyao.digger
 
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import org.junit.Assert.assertEquals

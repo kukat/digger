@@ -1,4 +1,4 @@
-package com.digger
+package me.cyao.digger
 
 import android.net.ConnectivityManager
 
