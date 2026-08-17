@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Harden the cross-platform DNS engine.
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] The Query form supports A, AAAA, CNAME, MX, TXT, NS, SOA, PTR, SRV, CAA, HTTPS, and SVCB.
 - [x] A, AAAA, CNAME, MX, and TXT are immediately available while the remaining record types are available through a compact More interaction.
@@ -21,4 +21,6 @@
 
 ## Comments
 
-Implemented the Query and structured Result work with app-workflow and native DNS-contract coverage. Ready for human review.
+Implemented the Query and structured Result work with app-workflow and native DNS-contract coverage.
+
+Marked done. All acceptance tasks complete.

@@ -4,7 +4,7 @@
 
 **Blocked by:** 01 — Build the Digger app foundation.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] A user can run A and AAAA Queries against the iOS system resolver and see a real Result in the existing workflow.
 - [x] A user can supply a valid custom IPv4 or IPv6 resolver address and port for the current Query.

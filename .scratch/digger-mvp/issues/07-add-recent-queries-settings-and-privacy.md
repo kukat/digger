@@ -4,7 +4,7 @@
 
 **Blocked by:** 04 — Harden the cross-platform DNS engine.
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] A valid Query is added to Recent Queries when native execution begins, regardless of whether it later returns a response or an error.
 - [x] Each Recent Query stores only normalized name and record type; it never stores Result data, response code, timing, resolver, transport outcome, or error details.
@@ -19,4 +19,6 @@
 
 ## Comments
 
-Implemented local Recent Query persistence, History and Settings workflows, privacy/About disclosures, and app-workflow coverage. Ready for human review.
+Implemented local Recent Query persistence, History and Settings workflows, privacy/About disclosures, and app-workflow coverage.
+
+Marked done. All acceptance tasks complete.

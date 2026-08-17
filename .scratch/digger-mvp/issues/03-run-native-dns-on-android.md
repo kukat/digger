@@ -4,7 +4,7 @@
 
 **Blocked by:** 02 — Run native DNS Queries on iOS.
 
-**Status:** ready-for-agent
+**Status:** done
 
 - [x] A user can run A and AAAA Queries against the Android system resolver and see a real Result.
 - [x] A user can run the same Queries against a valid custom IPv4 or IPv6 resolver and port.

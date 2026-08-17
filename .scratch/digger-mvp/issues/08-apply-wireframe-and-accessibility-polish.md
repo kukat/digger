@@ -4,7 +4,7 @@
 
 **Blocked by:** 06 — Add `dig` output, copy, and sharing; 07 — Add Recent Queries, Settings, and privacy controls.
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] Query, Result, History, and Settings follow the wireframe's visual hierarchy, restrained palette, grouped surfaces, compact controls, and mobile-first spacing.
 - [x] Name, record type, and Run Query dominate the Query screen while Advanced settings remain discoverable but visually secondary.
@@ -17,4 +17,6 @@
 
 ## Comments
 
-Implemented the wireframe palette and grouped mobile surfaces with light/dark themes, expanded touch targets, semantic Result tabs, accessible guidance and live status announcements, and long-record wrapping. Added app-workflow accessibility coverage. Ready for human review.
+Implemented the wireframe palette and grouped mobile surfaces with light/dark themes, expanded touch targets, semantic Result tabs, accessible guidance and live status announcements, and long-record wrapping. Added app-workflow accessibility coverage.
+
+Marked done. All acceptance tasks complete.

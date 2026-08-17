@@ -4,7 +4,7 @@
 
 **Blocked by:** 05 — Complete Query and structured Result functionality.
 
-**Status:** ready-for-human
+**Status:** done
 
 - [x] A user can switch between Structured and `dig` views of the same current Result.
 - [x] The `dig` view includes familiar header, status, flags, section, timing, server, transport, and message-size information when available.
@@ -18,4 +18,6 @@
 
 ## Comments
 
-Implemented `dig`-style Result formatting, selected-view copy/share actions, and app-workflow plus formatter snapshot coverage. Ready for human review.
+Implemented `dig`-style Result formatting, selected-view copy/share actions, and app-workflow plus formatter snapshot coverage.
+
+Marked done. All acceptance tasks complete.
