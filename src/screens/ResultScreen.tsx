@@ -250,11 +250,19 @@ export function ResultScreen({ navigation, route, resultActions }: Props) {
 
       {view === 'structured' ? (
         <>
-          <View style={styles.flags}>
-            <Text style={styles.flagsLabel}>Flags</Text>
-            <Text style={styles.flagsValue}>
-              {result.flags.join('  ') || 'none'}
-            </Text>
+          <View style={styles.details}>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Flags</Text>
+              <Text style={styles.detailValue}>
+                {result.flags.join('  ') || 'none'}
+              </Text>
+            </View>
+            <View style={styles.detailRow}>
+              <Text style={styles.detailLabel}>Server</Text>
+              <Text selectable style={styles.detailValue}>
+                {server}
+              </Text>
+            </View>
           </View>
           <QuestionSection questions={result.question} styles={styles} />
           <ResultSection
@@ -385,18 +393,24 @@ const createStyles = (colors: ReturnType<typeof useColors>) =>
     },
     segmentText: { color: colors.muted, fontSize: 13, fontWeight: '700' },
     segmentTextSelected: { color: colors.accent },
-    flags: {
-      flexDirection: 'row',
+    details: {
       marginVertical: 18,
+      rowGap: 8,
     },
-    flagsLabel: {
+    detailRow: {
+      flexDirection: 'row',
+    },
+    detailLabel: {
       color: colors.muted,
       fontSize: 13,
       fontWeight: '600',
       marginRight: 12,
+      width: 56,
     },
-    flagsValue: {
+    detailValue: {
       color: colors.ink,
+      flex: 1,
+      flexShrink: 1,
       fontFamily: Platform.select({ android: 'monospace', default: 'Courier' }),
       fontSize: 13,
     },

@@ -344,6 +344,69 @@ void normalizePtrAddress(Query& query) {
   }
 }
 
+std::optional<unsigned short> parseServerPort(const std::string& text) {
+  if (text.empty()) {
+    return 53;
+  }
+  if (text.find_first_not_of("0123456789") != std::string::npos) {
+    return std::nullopt;
+  }
+  const auto value = std::strtoul(text.c_str(), nullptr, 10);
+  if (value < 1 || value > 65535) {
+    return std::nullopt;
+  }
+  return static_cast<unsigned short>(value);
+}
+
+std::optional<Endpoint> endpointFromServerString(const char* value) {
+  if (value == nullptr || value[0] == '\0') {
+    return std::nullopt;
+  }
+  std::string server = value;
+  const auto scheme = server.find("://");
+  if (scheme != std::string::npos) {
+    server.erase(0, scheme + 3);
+    const auto cut = server.find_first_of("/?");
+    if (cut != std::string::npos) {
+      server.resize(cut);
+    }
+  }
+  const auto iface = server.find('%');
+  if (iface != std::string::npos) {
+    server.resize(iface);
+  }
+
+  std::string address;
+  std::string portText;
+  if (!server.empty() && server.front() == '[') {
+    const auto close = server.find(']');
+    if (close == std::string::npos) {
+      return std::nullopt;
+    }
+    address = server.substr(1, close - 1);
+    if (close + 1 < server.size()) {
+      if (server[close + 1] != ':') {
+        return std::nullopt;
+      }
+      portText = server.substr(close + 2);
+    }
+  } else {
+    const auto colon = server.rfind(':');
+    if (colon == std::string::npos) {
+      address = server;
+    } else {
+      address = server.substr(0, colon);
+      portText = server.substr(colon + 1);
+    }
+  }
+
+  const auto port = parseServerPort(portText);
+  if (address.empty() || !port.has_value()) {
+    return std::nullopt;
+  }
+  return Endpoint{std::move(address), static_cast<double>(*port)};
+}
+
 std::string normalizeCustomServer(const std::string& address,
                                   unsigned short port) {
   in_addr ipv4{};
@@ -439,18 +502,24 @@ class CaresDnsService final
     bool querySubmitted{false};
     bool deadlineExpired{false};
     std::string actualTransport{"udp"};
+    std::optional<Endpoint> observedServer;
 
     std::mutex channelMutex;
     std::condition_variable channelCondition;
     size_t channelUsers{0};
     bool destroyingChannel{false};
 
-    static void serverState(const char*, ares_bool_t, int transport,
-                            void* data) {
+    static void serverState(const char* serverString, ares_bool_t success,
+                            int transport, void* data) {
       auto* operation = static_cast<Operation*>(data);
       std::lock_guard lock(operation->stateMutex);
       if ((transport & ARES_SERV_STATE_TCP) != 0) {
         operation->actualTransport = "tcp";
+      }
+      if (success) {
+        if (auto endpoint = endpointFromServerString(serverString)) {
+          operation->observedServer = std::move(*endpoint);
+        }
       }
     }
 
@@ -487,14 +556,16 @@ class CaresDnsService final
       result.answer = records(dnsResponse, ARES_SECTION_ANSWER);
       result.authority = records(dnsResponse, ARES_SECTION_AUTHORITY);
       result.additional = records(dnsResponse, ARES_SECTION_ADDITIONAL);
-      if (operation->query.resolver.mode == Resolver::Mode::Custom) {
-        result.server = Endpoint{*operation->query.resolver.address,
-                                 static_cast<double>(
-                                     *operation->query.resolver.port)};
-      }
       {
         std::lock_guard lock(operation->stateMutex);
         result.transport = operation->actualTransport;
+        result.server = operation->observedServer;
+      }
+      if (!result.server.has_value() &&
+          operation->query.resolver.mode == Resolver::Mode::Custom) {
+        result.server = Endpoint{*operation->query.resolver.address,
+                                 static_cast<double>(
+                                     *operation->query.resolver.port)};
       }
       result.elapsedMs = std::chrono::duration<double, std::milli>(
                              Clock::now() - operation->started)

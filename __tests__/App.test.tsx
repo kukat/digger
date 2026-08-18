@@ -83,6 +83,27 @@ test('runs an injected A Query and shows loading before its Result', async () =>
   expect(screen.getByText('example.com · A')).toBeOnTheScreen();
 });
 
+test('shows the discovered system resolver on the Result', async () => {
+  const nativeDns = {
+    query: jest.fn(async () => ({
+      ...answer,
+      server: { address: '192.168.1.7', port: 53 },
+    })),
+    cancel: jest.fn(),
+  };
+
+  render(<App nativeDns={nativeDns} />);
+  fireEvent.changeText(
+    screen.getByPlaceholderText('example.com'),
+    'example.com',
+  );
+  fireEvent.press(screen.getByRole('button', { name: 'Run Query' }));
+
+  expect(await screen.findByText('UDP · 192.168.1.7:53')).toBeOnTheScreen();
+  expect(screen.getByText('Server')).toBeOnTheScreen();
+  expect(screen.getByText('192.168.1.7:53')).toBeOnTheScreen();
+});
+
 test('runs an AAAA Query against a custom IPv6 resolver', async () => {
   const nativeDns = {
     query: jest.fn(async () => ({
