@@ -1,0 +1,14 @@
+# Copy to .envrc and run `direnv allow`.
+# Release credentials stay on this machine; .envrc is gitignored.
+
+# Android signing (required by npm run release:android)
+export DIGGER_ANDROID_KEYSTORE=/secure/digger-release.keystore
+export DIGGER_ANDROID_KEYSTORE_PASSWORD=
+export DIGGER_ANDROID_KEY_ALIAS=
+export DIGGER_ANDROID_KEY_PASSWORD=
+
+# iOS signing (required by npm run release:ios)
+export DIGGER_IOS_TEAM_ID=
+
+# App Store Connect (required by asc publish testflight)
+export DIGGER_IOS_APP_ID=

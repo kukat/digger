@@ -26,7 +26,7 @@ npm run verify:release
 
 ## Release
 
-Build and publish from a local signing-capable Mac. `release:android` and `release:ios` produce store artifacts; upload those to Google Play and App Store Connect after the device gate.
+Build and publish from a local signing-capable Mac. Copy `.envrc.example` to `.envrc`, fill in the signing variables, and run `direnv allow`.
 
 ```sh
 npm run verify:release
@@ -40,6 +40,9 @@ npm run bump:build    # same marketing version, build +1 (store resubmit)
 # commit package.json, android/app/build.gradle, and ios/Digger.xcodeproj/project.pbxproj
 npm run release:android   # app-release.aab; needs DIGGER_ANDROID_*
 npm run release:ios       # Digger.ipa; needs DIGGER_IOS_TEAM_ID
+
+asc publish testflight --app "$DIGGER_IOS_APP_ID" --ipa "./build/release/ipa/Digger.ipa" --upload-only --wait --output json
+gpc releases upload android/app/build/outputs/bundle/release/app-release.aab --track internal --app me.cyao.digger
 ```
 
 ## Native DNS

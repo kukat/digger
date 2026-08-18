@@ -24,26 +24,28 @@ npm run verify:release
 
 ## Signed artifacts
 
-Release credentials are deliberately not stored in the repository. Android release tasks refuse to run without a non-debug keystore. Supply these as environment variables or Gradle properties, then build and inspect the AAB:
+Release credentials are deliberately not stored in the repository. Copy [`.envrc.example`](../.envrc.example) to `.envrc`, fill in the values, and run `direnv allow`. Android release tasks refuse to run without a non-debug keystore.
 
 ```sh
-export DIGGER_ANDROID_KEYSTORE=/secure/digger-release.keystore
-export DIGGER_ANDROID_KEYSTORE_PASSWORD=...
-export DIGGER_ANDROID_KEY_ALIAS=...
-export DIGGER_ANDROID_KEY_PASSWORD=...
 npm run release:android
 ```
 
 The command produces `android/app/build/outputs/bundle/release/app-release.aab` and verifies that it includes `arm64-v8a` and `x86_64` native libraries only.
 
-For iOS, use a signing-capable macOS runner with the Digger App ID and distribution profile available through automatic signing:
+For iOS, use a signing-capable Mac with the Digger App ID and distribution profile available through automatic signing:
 
 ```sh
-export DIGGER_IOS_TEAM_ID=ABCDE12345
 npm run release:ios
 ```
 
 The command archives and exports `build/release/ipa/Digger.ipa`. It requires a real Apple Developer team, so it is intentionally not run by the repository's deterministic checks.
+
+Upload the signed artifacts to TestFlight and the Play internal track:
+
+```sh
+asc publish testflight --app "$DIGGER_IOS_APP_ID" --ipa "./build/release/ipa/Digger.ipa" --upload-only --wait --output json
+gpc releases upload android/app/build/outputs/bundle/release/app-release.aab --track internal --app me.cyao.digger
+```
 
 ## Human release gate
 
