@@ -331,11 +331,13 @@ export function QueryScreen({
           autoCapitalize="none"
           autoCorrect={false}
           editable={!isLoading}
+          keyboardType="url"
           onChangeText={setName}
           onSubmitEditing={runQuery}
           placeholder="example.com"
           placeholderTextColor={colors.muted}
           returnKeyType="go"
+          spellCheck={false}
           style={styles.input}
           value={name}
         />
@@ -453,9 +455,11 @@ export function QueryScreen({
                   autoCapitalize="none"
                   autoCorrect={false}
                   editable={!isLoading}
+                  keyboardType="url"
                   onChangeText={setResolverAddress}
                   placeholder="192.0.2.53 or 2001:db8::53"
                   placeholderTextColor={colors.muted}
+                  spellCheck={false}
                   style={[styles.compactInput, styles.resolverAddress]}
                   value={resolverAddress}
                 />

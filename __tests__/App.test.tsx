@@ -104,6 +104,10 @@ test('runs an AAAA Query against a custom IPv6 resolver', async () => {
   fireEvent.press(screen.getByRole('radio', { name: 'AAAA' }));
   fireEvent.press(screen.getByRole('button', { name: 'Advanced settings' }));
   fireEvent.press(screen.getByRole('radio', { name: 'Custom resolver' }));
+  expect(screen.getByLabelText('Custom resolver address')).toHaveProp(
+    'keyboardType',
+    'url',
+  );
   fireEvent.changeText(
     screen.getByLabelText('Custom resolver address'),
     '2001:db8::53',
@@ -473,6 +477,7 @@ test('exposes the compact Query controls with accessible guidance and state', ()
     'accessibilityHint',
     'Enter the DNS name to look up.',
   );
+  expect(screen.getByLabelText('DNS name')).toHaveProp('keyboardType', 'url');
   expect(
     screen.getByRole('radio', { name: 'A' }).props.accessibilityState,
   ).toMatchObject({ checked: true });
