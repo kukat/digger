@@ -22,7 +22,7 @@ export DIGGER_ANDROID_KEY_PASSWORD=...
 npm run release:android
 ```
 
-The command produces `android/app/build/outputs/bundle/release/app-release.aab` and verifies that it includes `armeabi-v7a`, `arm64-v8a`, `x86`, and `x86_64` native libraries.
+The command produces `android/app/build/outputs/bundle/release/app-release.aab` and verifies that it includes `arm64-v8a` and `x86_64` native libraries only.
 
 For iOS, use a signing-capable macOS runner with the Digger App ID and distribution profile available through automatic signing:
 

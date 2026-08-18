@@ -22,11 +22,17 @@ bundle="$root/android/app/build/outputs/bundle/release/app-release.aab"
   echo "Android release bundle was not created at $bundle." >&2
   exit 1
 }
-for abi in armeabi-v7a arm64-v8a x86 x86_64; do
+for abi in arm64-v8a x86_64; do
   unzip -Z1 "$bundle" | grep "^base/lib/$abi/libappmodules.so$" >/dev/null || {
     echo "Release bundle is missing native libraries for $abi." >&2
     exit 1
   }
+done
+for abi in armeabi-v7a x86; do
+  if unzip -Z1 "$bundle" | grep -q "^base/lib/$abi/"; then
+    echo "Release bundle must not include 32-bit native libraries for $abi." >&2
+    exit 1
+  fi
 done
 
 echo "Signed Android App Bundle: $bundle"

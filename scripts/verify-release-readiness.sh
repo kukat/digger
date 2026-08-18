@@ -30,7 +30,7 @@ require_text 'NSPrivacyCollectedDataTypes' ios/Digger/PrivacyInfo.xcprivacy
 require_text '<array/>' ios/Digger/PrivacyInfo.xcprivacy
 require_text 'c-ares (1.34.5)' ios/Podfile.lock
 require_text 'c-ares-1.34.5.tar.gz' android/app/src/main/jni/CMakeLists.txt
-require_text 'abiFilters "armeabi-v7a", "arm64-v8a", "x86", "x86_64"' android/app/build.gradle
+require_text 'abiFilters "arm64-v8a", "x86_64"' android/app/build.gradle
 require_text 'verifyReleaseSigning' android/app/build.gradle
 require_text 'Open-source licenses & notices' src/screens/SettingsScreen.tsx
 require_text 'c-ares — MIT License' src/screens/SettingsScreen.tsx
