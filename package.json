@@ -11,6 +11,10 @@
     "test:native": "./scripts/test-native-dns.sh",
     "typecheck": "tsc --noEmit",
     "verify:release": "./scripts/verify-release-readiness.sh",
+    "bump:patch": "react-native bump-version --type patch",
+    "bump:minor": "react-native bump-version --type minor",
+    "bump:major": "react-native bump-version --type major",
+    "bump:build": "react-native bump-version --skip-semver-for all",
     "release:android": "./scripts/release-android.sh",
     "release:ios": "./scripts/release-ios.sh"
   },
@@ -59,6 +63,7 @@
     "eslint": "^8.19.0",
     "jest": "^29.6.3",
     "prettier": "2.8.8",
+    "react-native-cli-bump-version": "^1.5.1",
     "react-test-renderer": "19.2.3",
     "typescript": "^6.0.3"
   },

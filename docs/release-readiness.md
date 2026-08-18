@@ -1,5 +1,17 @@
 # Release readiness
 
+Ship from a local signing-capable Mac to App Store Connect and Google Play:
+
+```sh
+npm run verify:release
+npm run bump:patch    # or bump:minor / bump:major / bump:build
+# commit the three version files, then:
+npm run release:android
+npm run release:ios
+```
+
+`bump:*` updates `package.json`, Android `versionName`/`versionCode`, and iOS `MARKETING_VERSION`/`CURRENT_PROJECT_VERSION` together. Use `bump:build` when a store rejects the binary and the marketing version must stay the same. Both store scripts re-run `verify:release` before compiling.
+
 `npm run verify:release` checks the version alignment, iOS privacy and local-network declarations, Android's permission allowlist and release ABI configuration, c-ares pin, visible notices, local-only Recent Query storage boundary, and absence of first-party logging/upload APIs at the Query/Result boundary. It complements (but does not replace) the deterministic suites:
 
 ```sh

@@ -24,6 +24,24 @@ npm run verify:release
 (cd android && ./gradlew connectedDebugAndroidTest) # requires a device/emulator
 ```
 
+## Release
+
+Build and publish from a local signing-capable Mac. `release:android` and `release:ios` produce store artifacts; upload those to Google Play and App Store Connect after the device gate.
+
+```sh
+npm run verify:release
+
+# pick one:
+npm run bump:patch    # 1.0.0 -> 1.0.1, build +1
+npm run bump:minor    # 1.0.0 -> 1.1.0, build +1
+npm run bump:major    # 1.0.0 -> 2.0.0, build +1
+npm run bump:build    # same marketing version, build +1 (store resubmit)
+
+# commit package.json, android/app/build.gradle, and ios/Digger.xcodeproj/project.pbxproj
+npm run release:android   # app-release.aab; needs DIGGER_ANDROID_*
+npm run release:ios       # Digger.ipa; needs DIGGER_IOS_TEAM_ID
+```
+
 ## Native DNS
 
 Both apps expose the shared C++ c-ares 1.34.5 DNS service through the typed `NativeDnsModule` TurboModule. They support cancellable A and AAAA Queries through the system resolver or a custom IPv4/IPv6 resolver and port, with UDP/TCP selection, truncation fallback, EDNS, DO, timeouts, retries, and classified failures.

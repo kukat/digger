@@ -42,6 +42,11 @@ ios_version="$(grep -E '^[[:space:]]*MARKETING_VERSION = ' ios/Digger.xcodeproj/
 [[ "$package_version" == "$android_version" && "$package_version" == "$ios_version" ]] ||
   fail "package, Android, and iOS marketing versions must match"
 
+android_code="$(grep -E '^[[:space:]]*versionCode ' android/app/build.gradle | head -1 | sed -E 's/.*versionCode ([0-9]+).*/\1/')"
+ios_code="$(grep -E '^[[:space:]]*CURRENT_PROJECT_VERSION = ' ios/Digger.xcodeproj/project.pbxproj | head -1 | sed -E 's/.*= ([^;]+);/\1/')"
+[[ "$android_code" == "$ios_code" ]] ||
+  fail "Android versionCode ($android_code) and iOS CURRENT_PROJECT_VERSION ($ios_code) must match"
+
 # Production code intentionally has no logging or upload client at the Query /
 # Result boundary. Dependency and generated-source directories are excluded.
 if rg -n --glob '*.{ts,tsx,cpp,h,kt,mm,swift}' \
@@ -50,4 +55,4 @@ if rg -n --glob '*.{ts,tsx,cpp,h,kt,mm,swift}' \
   fail "production source contains a possible Query/Result logging or upload path"
 fi
 
-echo "Release configuration checks passed. Device acceptance remains a manual release gate."
+echo "Release configuration checks passed for $package_version ($android_code). Device acceptance remains a manual release gate."
